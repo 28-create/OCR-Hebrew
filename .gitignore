@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Pytest
+.pytest_cache/
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# IDE
+.vscode/
+.idea/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+
+# Temporary
+*.tmp
+*.temp
+
+# Generated releases
+release-stage/
+debug-dist/
+pyinstaller-build/
+pyinstaller-build-v02/
+pyinstaller-debug/
+
+# Test outputs
+tests-sep15-*/
+tests-v02-*/
+
+# Python cache
+.mypy_cache/
+.ruff_cache/

@@ -1,0 +1,56 @@
+[
+  {
+    "file": "downloads/tesseract-setup.exe",
+    "url": "https://github.com/tesseract-ocr/tesseract/releases/download/5.5.0/tesseract-ocr-w64-setup-5.5.0.20241111.exe",
+    "size": 21381872,
+    "sha256": "f3fc4236425b690c8be756f35793f77394ee004be0a6460a440c754d892f68bc"
+  },
+  {
+    "file": "tesseract/tessdata/heb.traineddata",
+    "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/heb.traineddata",
+    "size": 3704077,
+    "sha256": "dbaa827aea6bc21215638447f17783a1004987c2d0bf5573d111fee397abdae5"
+  },
+  {
+    "file": "tesseract/tessdata/eng.traineddata",
+    "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/eng.traineddata",
+    "size": 15400601,
+    "sha256": "8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba"
+  },
+  {
+    "file": "tesseract/tessdata/fra.traineddata",
+    "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/fra.traineddata",
+    "size": 3972885,
+    "sha256": "907743d98915c91a3906dfbf6e48b97598346698fe53aaa797e1a064ffcac913"
+  },
+  {
+    "file": "tesseract/tessdata/heb_rashi.traineddata",
+    "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_contrib/dfae088deccd8a1b2b16027f8ff4fec782099e4e/heb_rashi/best/heb_rashi.traineddata",
+    "size": 6367005,
+    "sha256": "c3bdf2c4188e037838e027de419e6e8ca663f1168fef3d09df1a3a46afab6c50"
+  },
+  {
+    "file": "licenses/tessdata-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/main/LICENSE",
+    "size": 10173,
+    "sha256": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9"
+  },
+  {
+    "file": "licenses/Rashi-TRAINING.md",
+    "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_contrib/dfae088deccd8a1b2b16027f8ff4fec782099e4e/heb_rashi/TRAINING.md",
+    "size": 7610,
+    "sha256": "1ee4724d29e5443adeb43b2e3f1ac89c4e93ac44063162dc935c0b16489c3130"
+  },
+  {
+    "file": "licenses/rashi-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_contrib/dfae088deccd8a1b2b16027f8ff4fec782099e4e/LICENSE",
+    "size": 11357,
+    "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+  },
+  {
+    "file": "licenses/tesseract-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/tesseract-ocr/tesseract/5.5.0/LICENSE",
+    "size": 11358,
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  }
+]

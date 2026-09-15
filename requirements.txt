@@ -1,0 +1,7 @@
+PySide6-Essentials==6.11.2
+pillow==12.3.0
+pypdfium2==5.13.0
+numpy==2.5.3
+pyinstaller==6.22.3
+pefile==2024.8.26
+pytest==9.1.1

@@ -1,0 +1,44 @@
+Aleph OCR 0.2.0 — Composants tiers
+
+Tesseract 5.5.0.20241111 — Apache-2.0
+https://github.com/tesseract-ocr/tesseract/releases/tag/5.5.0
+Leptonica et bibliothèques de la distribution Windows Tesseract :
+https://github.com/tesseract-ocr/tesseract
+https://github.com/UB-Mannheim/tesseract
+Les dépendances Windows proviennent de la distribution officielle ci-dessus.
+
+Modèles hébreu et anglais tessdata_best — Apache-2.0
+https://github.com/tesseract-ocr/tessdata_best
+
+Modèle Rachi — AvtechScientific / Pninim — Apache-2.0
+https://github.com/tesseract-ocr/tessdata_contrib/pull/6
+Révision : dfae088deccd8a1b2b16027f8ff4fec782099e4e
+Le document Rashi-TRAINING.md est conservé avec ses crédits.
+
+Qt / PySide6 Essentials et Shiboken 6.11.2 — LGPL-3.0 (ou licence commerciale)
+https://code.qt.io/cgit/pyside/pyside-setup.git/
+https://download.qt.io/official_releases/QtForPython/
+https://download.qt.io/official_releases/qt/
+L'application utilise les bibliothèques partagées Qt. Son code source et la
+procédure de reconstruction sont fournis pour permettre leur remplacement.
+La rétro-ingénierie nécessaire au débogage des modifications de ces
+bibliothèques n'est pas interdite par l'application.
+
+pypdfium2 5.13.0 / PDFium — Apache-2.0 ou BSD-3-Clause et notices PDFium
+https://github.com/pypdfium2-team/pypdfium2
+https://pdfium.googlesource.com/pdfium/
+NumPy 2.5.3 — BSD-3-Clause et notices des bibliothèques incluses
+https://github.com/numpy/numpy
+Pillow 12.3.0 — HPND et notices des bibliothèques incluses
+https://github.com/python-pillow/Pillow
+Python 3.14 — Python Software Foundation License
+https://www.python.org/downloads/source/
+PyInstaller 6.22.3 — GPL avec exception de distribution du bootloader
+https://github.com/pyinstaller/pyinstaller
+
+Police de l'exemple Rachi : Noto Rashi Hebrew — SIL Open Font License 1.1
+https://github.com/google/fonts/tree/main/ofl/notorashihebrew
+Les polices Windows ne sont pas redistribuées avec l'application.
+
+Les empreintes des modèles et de l'installateur source sont dans sources.json.
+Les textes de licences livrés avec les paquets sont joints dans cette archive.
