@@ -46,3 +46,5 @@ tests-v02-*/
 # Python cache
 .mypy_cache/
 .ruff_cache/
+benchmarks/local/
+benchmarks/reports/

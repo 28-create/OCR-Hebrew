@@ -64,7 +64,8 @@ def repair_mixed_rtl(text: str) -> str:
     for line in text.splitlines():
         hebrew = len(re.findall('[\u05d0-\u05ea]', line))
         latin = len(re.findall('[A-Za-zÀ-ÿ]', line))
-        if hebrew > latin and re.match(r'^\s*[A-Za-zÀ-ÿ]', line):
+        leading_filename = re.match(r'^\s*[A-Za-z0-9_-]+\.[A-Za-z]{2,5}\s+(?=[\u05d0-\u05ea])', line)
+        if (hebrew > latin or (leading_filename and hebrew >= 8)) and re.match(r'^\s*[A-Za-zÀ-ÿ]', line):
             match = re.match(r'^(.*?)(?=[\u05d0-\u05ea])', line)
             if match and match.group(1).strip():
                 prefix = match.group(1).strip()
