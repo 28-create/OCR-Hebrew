@@ -226,13 +226,7 @@ class QuickWorker(QThread):
 
     def run(self):
         try:
-            fast = Options(**vars(self.options))
-            fast.enhanced = False
-            draft = recognize(self.image, fast, self.cancel)[0]
-            self.draft.emit(draft)
-            if self.cancel.is_set():
-                return
-            candidates = recognize(self.image, self.options, self.cancel)
+            candidates = recognize(self.image, self.options, self.cancel, draft_callback=self.draft.emit)
             self.final.emit(candidates)
         except Exception as error:
             if not self.cancel.is_set():
@@ -441,6 +435,16 @@ class QuickWindow(QMainWindow):
         for widget in [auto_copy, close_copy, show_image, keep_history]:
             options.addRow(widget)
         layout.addWidget(options_group)
+        languages_group = QGroupBox('OCR · עברית / Français / English')
+        languages_form = QVBoxLayout(languages_group)
+        enabled_languages = self.settings.value('ocr_languages', ['heb', 'heb_rashi'])
+        languages = {}
+        for code, title in [('heb', 'עברית'), ('heb_rashi', 'רש״י'), ('fra', 'Français'), ('eng', 'English')]:
+            checkbox = QCheckBox(title)
+            checkbox.setChecked(code in enabled_languages)
+            languages[code] = checkbox
+            languages_form.addWidget(checkbox)
+        layout.addWidget(languages_group)
         shortcut_group = QGroupBox('קיצורי דרך כלליים')
         form = QFormLayout(shortcut_group)
         editors = {}
@@ -460,6 +464,11 @@ class QuickWindow(QMainWindow):
         buttons.rejected.connect(dialog.reject)
         layout.addWidget(buttons)
         if dialog.exec() == QDialog.DialogCode.Accepted:
+            selected_languages = [code for code, checkbox in languages.items() if checkbox.isChecked()]
+            if not selected_languages:
+                self.show_error('OCR: select at least one language / choisissez une langue / בחרו שפה')
+                return
+            self.settings.setValue('ocr_languages', selected_languages)
             self.settings.setValue('auto_copy', auto_copy.isChecked())
             self.settings.setValue('close_after_copy', close_copy.isChecked())
             self.settings.setValue('show_image', show_image.isChecked())
@@ -503,7 +512,8 @@ class QuickWindow(QMainWindow):
             self.worker.wait(1000)
         self.base_text = self.internal_text if self.pending_mode == 'append' else ''
         options = Options(script=self.script.currentData(), layout='block', dpi=360, enhanced=True,
-                          deskew=True, english=True, profile=self.profile.currentData(), typography='auto')
+                          deskew=True, languages=tuple(self.settings.value('ocr_languages', ['heb', 'heb_rashi'])),
+                          profile=self.profile.currentData(), typography='auto')
         self.progress.show()
         self.status.setText('מזהה טקסט מקומי…')
         self.capture_button.setEnabled(False)

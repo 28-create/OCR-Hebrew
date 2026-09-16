@@ -35,9 +35,11 @@ class OcrWorker(QThread):
         self.cancel = threading.Event()
 
     def run(self):
+        from ocr.running_elements import filter_batch
+        completed = []
         for n, page in enumerate(self.pages):
             if self.cancel.is_set():
-                return
+                break
             try:
                 started = time.monotonic()
                 self.message.emit(f'Page {page + 1} · préparation de l’image…')
@@ -46,12 +48,15 @@ class OcrWorker(QThread):
                     lambda stage: self.message.emit(f'Page {page + 1} · {stage}'))
                 label = f'Page {page + 1}' + (' · sélection' if self.box else ' · entière')
                 result = Result(page, label, candidates, time.monotonic() - started, Path(self.document.path).name)
-                self.resultReady.emit(result)
+                completed.append(result)
             except Cancelled:
-                return
+                break
             except Exception as error:
                 self.failed.emit(f'Page {page + 1} : {error}')
             self.progress.emit(n + 1, len(self.pages))
+        filter_batch(completed, self.options)
+        for result in completed:
+            self.resultReady.emit(result)
 
 
 def label(text, name=None, wrap=False):
@@ -162,9 +167,9 @@ class AlephWindow(QMainWindow):
         settings_layout.addWidget(self.script)
         settings_layout.addWidget(label('Organisation du passage'))
         self.layout_mode = QComboBox()
-        for text, value in [('Mise en page automatique', 'auto'), ('Un bloc / une colonne', 'block'), ('Une seule ligne', 'line'), ('Deux colonnes égales · RTL', 'columns')]:
+        for text, value in [('Mise en page automatique', 'auto'), ('Un bloc / une colonne', 'block'), ('Une seule ligne', 'line'), ('Colonnes détectées · RTL', 'columns')]:
             self.layout_mode.addItem(text, value)
-        self.layout_mode.setToolTip('Deux colonnes égales : moitié droite puis moitié gauche. Pour une page de Talmud, sélectionnez chaque commentaire séparément.')
+        self.layout_mode.setToolTip('Détecte les espaces entre colonnes et paragraphes. Vérifiez l’ordre sur les mises en page complexes.')
         settings_layout.addWidget(self.layout_mode)
         settings_layout.addWidget(label('Résolution du PDF'))
         self.resolution = QComboBox()
@@ -177,10 +182,20 @@ class AlephWindow(QMainWindow):
         self.enhanced.setToolTip('Compare les niveaux de gris et le contraste local. Les deux lectures restent disponibles dans le résultat.')
         self.deskew = QCheckBox('Redresser les lignes')
         self.deskew.setChecked(True)
-        self.english = QCheckBox('Inclure l’anglais')
+        self.ocr_languages = {code: QCheckBox(name) for code, name in [('heb', 'עברית'), ('heb_rashi', 'רש״י'), ('fra', 'Français'), ('eng', 'English')]}
+        for code, checkbox in self.ocr_languages.items():
+            checkbox.setChecked(code in ('heb', 'heb_rashi'))
         settings_layout.addWidget(self.enhanced)
         settings_layout.addWidget(self.deskew)
-        settings_layout.addWidget(self.english)
+        for checkbox in self.ocr_languages.values():
+            settings_layout.addWidget(checkbox)
+        self.ignore_headers = QCheckBox('Ignorer les en-têtes/pieds répétés')
+        self.ignore_headers.setChecked(True)
+        self.ignore_pages = QCheckBox('Ignorer la pagination détectée')
+        self.ignore_pages.setChecked(True)
+        self.include_repeated = QCheckBox('Inclure les éléments répétitifs')
+        for checkbox in (self.ignore_headers, self.ignore_pages, self.include_repeated):
+            settings_layout.addWidget(checkbox)
         settings_layout.addSpacing(10)
         settings_layout.addWidget(label('PLUSIEURS PAGES', 'section'))
         self.page_range = QLineEdit()
@@ -426,7 +441,11 @@ class AlephWindow(QMainWindow):
                     break
 
     def options(self):
-        return Options(self.script.currentData(), self.layout_mode.currentData(), self.resolution.currentData(), self.enhanced.isChecked(), self.deskew.isChecked(), self.english.isChecked())
+        return Options(self.script.currentData(), self.layout_mode.currentData(), self.resolution.currentData(),
+                       self.enhanced.isChecked(), self.deskew.isChecked(),
+                       tuple(code for code, checkbox in self.ocr_languages.items() if checkbox.isChecked()),
+                       ignore_running_headers=self.ignore_headers.isChecked(), ignore_pagination=self.ignore_pages.isChecked(),
+                       include_repeated=self.include_repeated.isChecked())
 
     def start_current(self):
         if self.document and not self.worker:
@@ -479,7 +498,6 @@ class AlephWindow(QMainWindow):
 
     def add_result(self, result):
         # Preserve per-variant corrections when navigating the session history.
-        result.edits = {}
         self.results.append(result)
         self.history.addItem(f'{result.label} — {result.source}')
         self.history.setCurrentIndex(len(self.results) - 1)

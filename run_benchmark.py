@@ -30,7 +30,7 @@ def accuracy(expected, actual, nikud=True):
 cases = [
     ('Hébreu carré propre', Path('work/aleph/assets/demo-square.png'), '\n'.join(json.loads(Path('work/aleph/assets/demo-truth.json').read_text(encoding='utf-8'))['square']), Options(script='square', layout='block')),
     ('Rachi imprimé propre', Path('work/aleph/assets/demo-rashi.png'), '\n'.join(json.loads(Path('work/aleph/assets/demo-truth.json').read_text(encoding='utf-8'))['rashi']), Options(script='rashi', layout='block')),
-    ('Hébreu + français + anglais', CORPUS/'mixed.png', '\n'.join(truth['mixed']), Options(script='auto', layout='block', english=True)),
+    ('Hébreu + français + anglais', CORPUS/'mixed.png', '\n'.join(truth['mixed']), Options(script='auto', layout='block', languages=('heb', 'heb_rashi', 'eng', 'fra'))),
     ('Texte avec niqqud', CORPUS/'nikud.png', '\n'.join(truth['nikud']), Options(script='square', layout='block')),
     ('Fond jauni, contraste faible', CORPUS/'low_contrast.png', '\n'.join(truth['low_contrast']), Options(script='auto', layout='block')),
     ('Page inclinée 2,2°', CORPUS/'skew.png', '\n'.join(truth['skew']), Options(script='square', layout='block', deskew=True)),

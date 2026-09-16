@@ -27,3 +27,25 @@ sur les 7 cas (carré 0 ; Rachi .0761 ; mixte .0105 ; niqqud .2586 ; contraste
 .0508 ; inclinaison 0 ; colonnes 0). Mesure standard incluant ponctuation et
 espaces, donc non directement comparable au pourcentage historique v0.2 qui
 les supprimait. Aucun corpus modifié pour améliorer les résultats.
+
+## Étape 2 — Smart OCR
+
+Extraction incrémentale vers `aleph/ocr/` : segmentation par espaces, colonnes
+inégales RTL, paragraphes, titres traversants, candidats d'en-tête/pied et notes
+heuristiques. OCR séparé heb / heb_rashi, essais complémentaires seulement sous
+un seuil de confiance, lecture brute réutilisée et conservée. Les coordonnées
+de mots sont ramenées à l'image source après marge/redressement. Candidate et
+Result déclarent leurs états, les blocs gardent source, ordre, modèle et score.
+
+Filtres de livre : répétition d'un texte de bord sur au moins deux pages ;
+pagination évoluant avec les pages sur au moins trois pages. Pas de suppression
+sur position seule. Les éléments exclus restent disponibles dans les blocs et
+dans la variante brute. Le batch publie ses résultats après analyse de répétition.
+Les langues OCR sont des sélections indépendantes, sans anglais/français forcés.
+
+Validation : **22 passed, 32.56s**. Benchmark 7 cas : aucune régression, niqqud
+CER .259259 -> .222222, exactitude sans niqqud .921053 -> 1 sur ce petit cas.
+Les six autres CER sont inchangés. Ce n'est pas une garantie sur des scans réels.
+Pas de classificateur appris ni dictionnaire hébreu : le score de plausibilité
+est un indice de caractères, la classification de mise en page est heuristique.
+PDF de référence et vérité terrain encore absents ; validation réelle bloquée.

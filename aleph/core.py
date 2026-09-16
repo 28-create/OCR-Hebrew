@@ -169,9 +169,12 @@ class Options:
     dpi: int = 360
     enhanced: bool = True
     deskew: bool = True
-    english: bool = False
+    languages: tuple[str, ...] = ('heb', 'heb_rashi')
     profile: str = 'torah'
     typography: str = 'auto'
+    ignore_running_headers: bool = True
+    ignore_pagination: bool = True
+    include_repeated: bool = False
 
 
 @dataclass
@@ -182,6 +185,22 @@ class Candidate:
     label: str
     words: int
     boxes: list[tuple[str, float, float, float, float, float]] = field(default_factory=list)
+    model: str = ''
+    blocks: list['BlockResult'] = field(default_factory=list)
+
+
+@dataclass
+class BlockResult:
+    box: tuple[int, int, int, int]
+    order: int
+    kind: str
+    image: Image.Image
+    candidates: list[Candidate]
+    selected: int = 0
+    model: str = ''
+    score: float = 0
+    included: bool = True
+    exclusion_reason: str = ''
 
 
 @dataclass
@@ -193,13 +212,14 @@ class Result:
     source: str = ''
     selected: int = 0
     edited_text: str | None = None
+    edits: dict[int, str] = field(default_factory=dict)
 
     @property
     def text(self):
         return self.edited_text if self.edited_text is not None else self.candidates[self.selected].text
 
 
-def preprocess(image: Image.Image, deskew: bool, binary: bool = False) -> Image.Image:
+def preprocess(image: Image.Image, deskew: bool, binary: bool = False, transform=None) -> Image.Image:
     gray = ImageOps.autocontrast(ImageOps.grayscale(image), cutoff=.3)
     if deskew and min(gray.size) > 150:
         small = gray.copy()
@@ -213,6 +233,8 @@ def preprocess(image: Image.Image, deskew: bool, binary: bool = False) -> Image.
         best = max(angles, key=score)
         if best and score(best) > baseline * 1.08:
             gray = gray.rotate(float(best), resample=Image.Resampling.BICUBIC, expand=True, fillcolor=255)
+            if transform is not None:
+                transform['angle'] = float(best)
     if binary:
         # Local background normalization retains fine Rashi strokes on yellowed paper.
         background = gray.filter(ImageFilter.GaussianBlur(18))
@@ -267,38 +289,10 @@ def run_tesseract(image: Image.Image, lang: str, psm: int, cancel: threading.Eve
         return Candidate(text, confidence, uncertain, label, len(words), boxes)
 
 
-def recognize(image: Image.Image, options: Options, cancel: threading.Event, progress=lambda value: None) -> list[Candidate]:
-    language = {'auto': 'heb+heb_rashi', 'square': 'heb', 'rashi': 'heb_rashi', 'mixed': 'heb+heb_rashi'}[options.script]
-    if options.english:
-        language += '+eng+fra'
-    psm = {'auto': 3, 'block': 6, 'line': 7, 'columns': 6}[options.layout]
-    areas = [image]
-    if options.layout == 'columns':
-        # Deliberately equal halves; user is told to select irregular columns manually.
-        middle = image.width // 2
-        areas = [image.crop((middle, 0, image.width, image.height)), image.crop((0, 0, middle, image.height))]
-    candidates = []
-    for binary in ([False, True] if options.enhanced else [False]):
-        label = 'Contraste local' if binary else 'Niveaux de gris'
-        partials = []
-        for n, area in enumerate(areas):
-            if cancel.is_set():
-                raise Cancelled()
-            progress(f'{label} · zone {n + 1}/{len(areas)}')
-            prepared = preprocess(area, options.deskew, binary)
-            partials.append(run_tesseract(prepared, language, psm, cancel, label))
-        words = sum(item.words for item in partials)
-        candidates.append(Candidate('\n\n'.join(item.text for item in partials if item.text),
-                                    sum(item.confidence * item.words for item in partials) / max(1, words),
-                                    list(dict.fromkeys(w for item in partials for w in item.uncertain)), label, words,
-                                    [box for item in partials for box in item.boxes]))
-    if options.typography == 'auto':
-        for candidate in candidates:
-            candidate.text = hebrew_typography(candidate.text)
-            if options.english:
-                candidate.text = repair_mixed_rtl(candidate.text)
-    candidates.sort(key=lambda item: (bool(item.text), item.confidence), reverse=True)
-    return candidates
+def recognize(image: Image.Image, options: Options, cancel: threading.Event, progress=lambda value: None,
+              raw=None, draft_callback=None) -> list[Candidate]:
+    from ocr.engine import recognize_blocks
+    return recognize_blocks(image, options, cancel, progress, raw, draft_callback)
 
 
 def export_docx(path: str, text: str):
