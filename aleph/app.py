@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabe
 from core import Document, Options, Result, Candidate, Cancelled, clean_text, parse_pages, recognize, save_text, ASSETS
 from widgets import PageView, STYLE, app_icon, init_fonts
 
-VERSION = '0.2.0'
+VERSION = '0.3.0-dev'
 
 
 class OcrWorker(QThread):
@@ -47,7 +47,7 @@ class OcrWorker(QThread):
                 candidates = recognize(image, self.options, self.cancel,
                     lambda stage: self.message.emit(f'Page {page + 1} · {stage}'))
                 label = f'Page {page + 1}' + (' · sélection' if self.box else ' · entière')
-                result = Result(page, label, candidates, time.monotonic() - started, Path(self.document.path).name)
+                result = Result(page, label, candidates, time.monotonic() - started, Path(self.document.path).name, image=image)
                 completed.append(result)
             except Cancelled:
                 break
@@ -716,29 +716,19 @@ def main():
             report['error'] = str(error)
         Path(args.self_test_report).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
         return 0 if report['ok'] else 1
-    if args.document or args.smoke_test:
+    if args.smoke_test:
         window = AlephWindow(settings=not args.smoke_test)
         window.show()
         if args.document:
             window.open_document(args.document)
     else:
-        from quick import QuickWindow, QUICK_STYLE
+        from quick import QUICK_STYLE
+        from ui.main_window import MainWindow
         application.setStyleSheet(STYLE + QUICK_STYLE)
-        window = QuickWindow()
-        professionals = []
-        def open_professional():
-            professional = AlephWindow()
-            professional.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-            professionals.append(professional)
-            window.hide()
-            professional.show()
-            def restore():
-                if professional in professionals:
-                    professionals.remove(professional)
-                window.show()
-            professional.destroyed.connect(restore)
-        window.openProfessional.connect(open_professional)
+        window = MainWindow()
         window.show()
+        if args.document:
+            window.open_document(args.document)
         if args.quick_smoke_test:
             from core import Candidate
             from PIL import Image

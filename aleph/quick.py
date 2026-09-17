@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import ctypes
 from ctypes import wintypes
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import sys
 import threading
@@ -12,7 +12,7 @@ import time
 import numpy as np
 from PIL import Image
 from PySide6.QtCore import Qt, QObject, QRect, QRectF, QPoint, Signal, QThread, QTimer, QAbstractNativeEventFilter, QSettings
-from PySide6.QtGui import QColor, QPainter, QPen, QBrush, QFont, QTextCursor, QTextBlockFormat, QKeySequence, QShortcut, QGuiApplication
+from PySide6.QtGui import QColor, QPainter, QPen, QBrush, QFont, QTextCursor, QTextBlockFormat, QKeySequence, QShortcut, QGuiApplication, QCursor
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel, QPushButton, QTextEdit, QVBoxLayout,
     QHBoxLayout, QSplitter, QComboBox, QProgressBar, QMessageBox, QDialog, QCheckBox, QDialogButtonBox,
     QFormLayout, QKeySequenceEdit, QGroupBox)
@@ -73,6 +73,7 @@ class CaptureOverlay(QWidget):
         self.setMouseTracking(True)
         self.origin = None
         self.selection = QRect()
+        self.hint = 'גרור מסגרת סביב הטקסט · Esc'
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -82,13 +83,13 @@ class CaptureOverlay(QWidget):
             ratio = self.screenshot.devicePixelRatio()
             source = QRect(round(self.selection.x() * ratio), round(self.selection.y() * ratio),
                            round(self.selection.width() * ratio), round(self.selection.height() * ratio))
-            painter.drawPixmap(self.selection, self.screenshot, QRectF(source))
+            painter.drawPixmap(QRectF(self.selection), self.screenshot, QRectF(source))
             painter.setPen(QPen(QColor('#d6b875'), 2))
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.drawRect(self.selection)
         painter.setPen(Qt.GlobalColor.white)
         painter.setFont(QFont('Segoe UI', 12, QFont.Weight.DemiBold))
-        painter.drawText(24, 34, 'גרור מסגרת סביב הטקסט  ·  Échap לביטול')
+        painter.drawText(24, 34, self.hint)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -136,6 +137,8 @@ class CaptureController(QObject):
         for screen in QApplication.screens():
             screenshot = screen.grabWindow(0)
             overlay = CaptureOverlay(screen, screenshot)
+            if hasattr(self.owner, 't'):
+                overlay.hint = self.owner.t('capture_hint')
             overlay.selected.connect(self._selected)
             overlay.cancelled.connect(self._cancel)
             self.overlays.append(overlay)
@@ -145,18 +148,27 @@ class CaptureController(QObject):
             self.overlays[0].activateWindow()
 
     def capture_window(self):
-        hwnd = ctypes.windll.user32.GetForegroundWindow() if sys.platform == 'win32' else 0
+        if self.owner.worker:
+            return
         self.owner.hide()
-        QTimer.singleShot(180, lambda: self._grab_window(hwnd))
+        QTimer.singleShot(180, self._foreground_window)
+
+    def _foreground_window(self):
+        hwnd = 0
+        if sys.platform == 'win32':
+            function = ctypes.windll.user32.GetForegroundWindow
+            function.restype = wintypes.HWND
+            hwnd = function()
+        self._grab_window(hwnd)
 
     def _grab_window(self, hwnd):
-        screen = QApplication.screenAt(QGuiApplication.cursor().pos()) or QApplication.primaryScreen()
+        screen = QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()
         pixmap = screen.grabWindow(hwnd)
         if pixmap.isNull():
             self.owner.show()
             self.owner.show_error('לא ניתן לצלם חלון זה. נסו לכידת אזור.')
             return
-        rect = QRect(QGuiApplication.cursor().pos(), pixmap.deviceIndependentSize().toSize())
+        rect = QRect(QCursor.pos(), pixmap.deviceIndependentSize().toSize())
         self.captured.emit(qimage_to_pil(pixmap.toImage()), rect)
 
     def _selected(self, image, rect):
@@ -235,17 +247,25 @@ class QuickWorker(QThread):
 
 @dataclass
 class CaptureItem:
-    image: Image.Image
+    image: Image.Image | None
     text: str
     rect: QRect
     confidence: float
     profile: str
+    source: str = 'Capture'
+    page: int = 0
+    created: float = field(default_factory=time.time)
+    options: Options | None = None
+    candidates: list[Candidate] = field(default_factory=list)
+    document: object = None
+    corrections: dict[int, str] = field(default_factory=dict)
+    selected: int = 0
 
 
 class QuickWindow(QMainWindow):
     openProfessional = Signal()
 
-    PROFILE_IDS = ['torah', 'halakha', 'biblical', 'general', 'document', 'handwriting']
+    PROFILE_IDS = ['torah', 'general']
 
     def __init__(self):
         super().__init__()
@@ -264,6 +284,11 @@ class QuickWindow(QMainWindow):
         self.base_text = ''
         self.current_candidate = None
         self.issue_index = -1
+        self.active_history = -1
+        self.candidates = []
+        self.user_edited_draft = False
+        self.last_options = None
+        self.duplicate_start = 0
         self.capture = CaptureController(self)
         self.capture.captured.connect(self.receive_capture)
         self._build()
@@ -329,7 +354,7 @@ class QuickWindow(QMainWindow):
 
         controls = QHBoxLayout()
         self.profile = QComboBox()
-        for name, value in [('תורני', 'torah'), ('הלכתי', 'halakha'), ('מקראי', 'biblical'), ('כללי', 'general'), ('מסמך', 'document'), ('כתב יד · ניסיוני', 'handwriting')]:
+        for name, value in [('ספר תורני', 'torah'), ('כללי', 'general')]:
             self.profile.addItem(name, value)
         controls.addWidget(self.profile)
         self.script = QComboBox()
@@ -368,6 +393,10 @@ class QuickWindow(QMainWindow):
         self.remove_duplicate.clicked.connect(self.delete_duplicate)
         self.remove_duplicate.hide()
         actions.addWidget(self.remove_duplicate)
+        self.keep_duplicate = QPushButton('Conserver / שמור')
+        self.keep_duplicate.clicked.connect(self.dismiss_duplicate)
+        self.keep_duplicate.hide()
+        actions.addWidget(self.keep_duplicate)
         actions.addStretch()
         self.pro_button = QPushButton('פתח מצב מקצועי')
         self.pro_button.clicked.connect(self.openProfessional)
@@ -508,12 +537,13 @@ class QuickWindow(QMainWindow):
 
     def start_ocr(self, image, rect):
         if self.worker:
-            self.worker.cancel.set()
-            self.worker.wait(1000)
+            return
+        self.current_image, self.current_rect = image, rect
+        self.active_history = -1
+        self.user_edited_draft = False
         self.base_text = self.internal_text if self.pending_mode == 'append' else ''
-        options = Options(script=self.script.currentData(), layout='block', dpi=360, enhanced=True,
-                          deskew=True, languages=tuple(self.settings.value('ocr_languages', ['heb', 'heb_rashi'])),
-                          profile=self.profile.currentData(), typography='auto')
+        options = self.make_options()
+        self.last_options = options
         self.progress.show()
         self.status.setText('מזהה טקסט מקומי…')
         self.capture_button.setEnabled(False)
@@ -524,19 +554,30 @@ class QuickWindow(QMainWindow):
         self.worker.finished.connect(self.worker_finished)
         self.worker.start()
 
+    def make_options(self):
+        return Options(script=self.script.currentData(), layout='auto', dpi=360, enhanced=True,
+                          deskew=True, languages=tuple(self.settings.value('ocr_languages', ['heb', 'heb_rashi'])),
+                          profile=self.profile.currentData(), typography='auto')
+
     def show_draft(self, candidate):
         self._set_result(candidate, final=False)
 
     def show_final(self, candidates):
+        self.candidates = candidates
         candidate = candidates[0]
-        self._set_result(candidate, final=True)
+        if not self.user_edited_draft:
+            self._set_result(candidate, final=True)
         if self.settings.value('session_history', True, type=bool):
-            self.items.append(CaptureItem(self.current_image.copy(), self.internal_text, QRect(self.current_rect),
-                                          candidate.confidence, self.profile.currentData()))
+            retained = self.current_image.copy() if self.current_image is not None and self.settings.value('retain_image', True, type=bool) else None
+            self.items.append(CaptureItem(retained, self.internal_text, QRect(self.current_rect),
+                                          candidate.confidence, self.profile.currentData(), options=self.last_options,
+                                          candidates=candidates))
+            self.active_history = len(self.items) - 1
             self.history.addItem(f'◷  {len(self.items)} · {time.strftime("%H:%M:%S")}')
             self.history.blockSignals(True)
             self.history.setCurrentIndex(self.history.count() - 1)
             self.history.blockSignals(False)
+            self.history.setToolTip(f'Historique / היסטוריה ({len(self.items)})')
         if self.settings.value('auto_copy', False, type=bool):
             self.copy_all()
 
@@ -552,9 +593,12 @@ class QuickWindow(QMainWindow):
                 self.duplicate.setText(f'⚠ כפילות אפשרית: {count} מילים בתחילת הלכידה החדשה. הטקסט לא נמחק אוטומטית.')
                 self.duplicate.show()
                 self.remove_duplicate.show()
+                self.keep_duplicate.show()
+                self.duplicate_start = len(self.base_text.rstrip()) + 2
         elif self.pending_mode == 'replace':
             self.duplicate.hide()
             self.remove_duplicate.hide()
+            self.keep_duplicate.hide()
         self.internal_text = text
         self.editor.blockSignals(True)
         self.editor.setPlainText(self.visible_text(text))
@@ -587,22 +631,38 @@ class QuickWindow(QMainWindow):
         self.editor.setPlainText(self.visible_text(self.internal_text))
         self._format_editor()
         self.editor.blockSignals(False)
+        self.save_history_text()
 
     def edited(self):
-        # Once edited in hidden-nikud mode, visible text becomes the authoritative text.
-        self.internal_text = self.editor.toPlainText()
+        from domain.text import edit_hidden
+        visible = self.editor.toPlainText()
+        self.internal_text = edit_hidden(self.internal_text, visible) if self.nikud.currentData() == 'hide' else visible
+        self.user_edited_draft = True
+        self.save_history_text()
+        self.dismiss_duplicate()
+
+    def save_history_text(self):
+        if 0 <= self.active_history < len(self.items):
+            item = self.items[self.active_history]
+            item.text = self.internal_text
+            item.corrections[item.selected] = self.internal_text
+
+    def dismiss_duplicate(self):
+        self.duplicate_chars = 0
+        self.duplicate.hide()
+        self.remove_duplicate.hide()
+        self.keep_duplicate.hide()
+        self.highlight_issues()
 
     def delete_duplicate(self):
         if not self.duplicate_chars:
             return
-        separator = self.internal_text.rfind('\n\n')
-        if separator >= 0:
-            start = separator + 2
+        if self.duplicate_start:
+            start = self.duplicate_start
             self.internal_text = self.internal_text[:start] + self.internal_text[start + self.duplicate_chars:].lstrip()
             self.apply_nikud()
-        self.duplicate_chars = 0
-        self.duplicate.hide()
-        self.remove_duplicate.hide()
+            self.save_history_text()
+        self.dismiss_duplicate()
 
     def copy_all(self):
         text = self.editor.toPlainText()
@@ -616,6 +676,16 @@ class QuickWindow(QMainWindow):
 
     def highlight_issues(self):
         selections = []
+        if self.duplicate_chars:
+            cursor = QTextCursor(self.editor.document())
+            start = len(self.visible_text(self.internal_text[:self.duplicate_start]))
+            end = len(self.visible_text(self.internal_text[:self.duplicate_start + self.duplicate_chars]))
+            cursor.setPosition(start)
+            cursor.setPosition(end, QTextCursor.MoveMode.KeepAnchor)
+            selection = QTextEdit.ExtraSelection()
+            selection.cursor = cursor
+            selection.format.setBackground(QColor('#ffd7cf'))
+            selections.append(selection)
         if self.current_candidate:
             for word in self.current_candidate.uncertain:
                 cursor = QTextCursor(self.editor.document())
@@ -661,10 +731,20 @@ class QuickWindow(QMainWindow):
         if index <= 0 or index > len(self.items):
             return
         item = self.items[index - 1]
-        self.current_image, self.current_rect, self.internal_text = item.image.copy(), QRect(item.rect), item.text
-        self.show_capture_image(item.image)
+        self.active_history = index - 1
+        self.current_image, self.current_rect, self.internal_text = item.image.copy() if item.image else None, QRect(item.rect), item.text
+        self.candidates = item.candidates
+        self.current_candidate = item.candidates[item.selected] if item.candidates else None
+        if item.image:
+            self.show_capture_image(item.image)
+        else:
+            self.image_panel.set_image(Image.new('RGB', (1, 1), 'white'))
+        self.editor.blockSignals(True)
         self.editor.setPlainText(self.visible_text(item.text))
         self._format_editor()
+        self.editor.blockSignals(False)
+        self.highlight_issues()
+        self.dismiss_duplicate()
         self.confidence.setText(f'מדד OCR {item.confidence:.0f}/100')
 
     def apply_display(self, index):
@@ -720,7 +800,8 @@ class QuickWindow(QMainWindow):
     def closeEvent(self, event):
         if self.worker:
             self.worker.cancel.set()
-            self.worker.wait(1200)
+            event.ignore()
+            return
         self.settings.setValue('always_on_top', self.pin.isChecked())
         self.settings.setValue('display', self.display.currentIndex())
         self.settings.setValue('language', self.language.currentData())

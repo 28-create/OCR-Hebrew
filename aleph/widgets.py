@@ -50,10 +50,12 @@ class PageView(QGraphicsView):
         self.selection = None
         self.overlay = None
         self.origin = None
+        self.word_highlight = None
         self.setMinimumWidth(240)
 
     def set_image(self, image):
         self.canvas.clear()
+        self.word_highlight = None
         self.overlay = None
         self.selection = None
         self.origin = None
@@ -62,6 +64,15 @@ class PageView(QGraphicsView):
         self.canvas.setSceneRect(self.page_rect.adjusted(-18, -18, 18, 18))
         self.fit_page()
         self.selectionChanged.emit(False)
+
+    def set_highlight(self, box):
+        if self.word_highlight is not None:
+            self.canvas.removeItem(self.word_highlight)
+            self.word_highlight = None
+        if box and not self.page_rect.isEmpty():
+            x, y, w, h = box
+            rect = QRectF(x * self.page_rect.width(), y * self.page_rect.height(), w * self.page_rect.width(), h * self.page_rect.height())
+            self.word_highlight = self.canvas.addRect(rect, QPen(QColor('#cc8f35'), 2), QBrush(QColor(255, 191, 72, 65)))
 
     def fit_page(self):
         if not self.page_rect.isEmpty():

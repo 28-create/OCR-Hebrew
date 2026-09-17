@@ -76,14 +76,8 @@ def repair_mixed_rtl(text: str) -> str:
 
 def probable_overlap(previous: str, following: str, minimum: int = 3) -> tuple[int, int]:
     """Return overlapping word count and source character count; never mutates text."""
-    def words(value):
-        return [(m.group(), m.start(), m.end()) for m in re.finditer(r'[\w\u0590-\u05ff״׳]+', without_nikud(value).lower())]
-    left, right = words(previous), words(following)
-    maximum = min(18, len(left), len(right))
-    for count in range(maximum, minimum - 1, -1):
-        if [x[0] for x in left[-count:]] == [x[0] for x in right[:count]]:
-            return count, right[count - 1][2]
-    return 0, 0
+    from domain.text import overlap
+    return overlap(previous, following, minimum)
 
 
 def parse_pages(value: str, total: int) -> list[int]:
@@ -213,6 +207,7 @@ class Result:
     selected: int = 0
     edited_text: str | None = None
     edits: dict[int, str] = field(default_factory=dict)
+    image: Image.Image | None = None
 
     @property
     def text(self):
@@ -295,13 +290,15 @@ def recognize(image: Image.Image, options: Options, cancel: threading.Event, pro
     return recognize_blocks(image, options, cancel, progress, raw, draft_callback)
 
 
-def export_docx(path: str, text: str):
+def export_docx(path: str, text: str, font='Arial', font_size=14):
     """Small, standards-based Word document; all paragraphs and runs are RTL."""
     paragraphs = []
+    font = escape(font, {'"': '&quot;'})
+    half_points = max(16, min(144, int(font_size) * 2))
     for line in text.split('\n'):
         paragraphs.append('<w:p><w:pPr><w:bidi/><w:jc w:val="right"/></w:pPr><w:r><w:rPr>'
-                          '<w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/><w:rtl/>'
-                          '<w:sz w:val="28"/><w:szCs w:val="28"/><w:lang w:bidi="he-IL"/>'
+                          f'<w:rFonts w:ascii="{font}" w:hAnsi="{font}" w:cs="{font}"/><w:rtl/>'
+                          f'<w:sz w:val="{half_points}"/><w:szCs w:val="{half_points}"/><w:lang w:bidi="he-IL"/>'
                           '</w:rPr><w:t xml:space="preserve">' + escape(line) + '</w:t></w:r></w:p>')
     document = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' + ''.join(paragraphs) + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr></w:body></w:document>'
     content_types = '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'
@@ -312,14 +309,14 @@ def export_docx(path: str, text: str):
         archive.writestr('word/document.xml', document)
 
 
-def save_text(path: str, text: str):
+def save_text(path: str, text: str, font='Arial', font_size=14):
     """Atomic save keeps an existing user file intact if writing fails."""
     target = Path(path)
     descriptor, temporary = tempfile.mkstemp(prefix='.aleph-', suffix=target.suffix, dir=target.parent)
     os.close(descriptor)
     try:
         if target.suffix.lower() == '.docx':
-            export_docx(temporary, text)
+            export_docx(temporary, text, font, font_size)
         else:
             Path(temporary).write_text(text, encoding='utf-8-sig')
         os.replace(temporary, target)

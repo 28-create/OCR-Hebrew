@@ -72,7 +72,7 @@ def test_pdf_render_extract_crop_and_rotations(sample_pdf):
     assert abs(crop.width * 2 - whole.width) <= 1
     assert document.render(1, 144, rotation=90).size == whole.size[::-1]
 
-def test_selection_worker_and_edit_history(window, application):
+def test_selection_worker_and_edit_history(window, application, tmp_path):
     window.open_demo()
     application.processEvents()
     view = window.view
@@ -102,7 +102,7 @@ def test_selection_worker_and_edit_history(window, application):
     assert QApplication.clipboard().text() == corrected
     assert 'dir="rtl"' in QApplication.clipboard().mimeData().html()
     application.processEvents()
-    window.grab().save(str(Path(__file__).parent / 'ui-recognition.png'))
+    window.grab().save(str(tmp_path / 'ui-recognition.png'))
 
 def test_batch_pdf(window, application, sample_pdf):
     window.open_document(str(sample_pdf))
