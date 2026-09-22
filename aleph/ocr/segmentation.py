@@ -90,7 +90,14 @@ def segment(image, layout='auto'):
         lines = runs(area.sum(axis=1) > max(1, width * .002))
         gaps = [(lines[i][1], lines[i + 1][0]) for i in range(len(lines) - 1)]
         typical_gap = float(np.median([b - a for a, b in gaps])) if gaps else 0
-        threshold = max(line_height * .85, typical_gap * 1.65)
+        # Printed Hebrew often has tall joined glyph bands: using almost one
+        # glyph-height here hid genuine paragraph whitespace. A paragraph gap
+        # must instead exceed the ordinary line gap, with a small noise floor.
+        threshold = max(line_height * .35, typical_gap * 1.8)
+        # A short user-selected passage should stay intact unless it contains a
+        # truly large separator; small glyph/descender variations are not blocks.
+        if len(lines) <= 8:
+            threshold = max(threshold, line_height * 1.5)
         divisions = [(a, b) for a, b in gaps if b - a > threshold]
         if divisions:
             last = 0
@@ -121,6 +128,13 @@ def segment(image, layout='auto'):
         box = (max(0, int((x0 - pad) * sx)), max(0, int((y0 - pad) * sy)),
                min(image.width, int((x1 + pad) * sx)), min(image.height, int((y1 + pad) * sy)))
         regions.append(Region(box, order, kind))
-    # Notes stay distinct and follow the text, while preserving RTL within each.
-    regions.sort(key=lambda r: (r.kind == 'notes', r.order))
+    # Reading order is body, scholarly notes, then pagination/scanner metadata.
+    # Preserve RTL discovery order inside each group.
+    def reading_group(region):
+        if region.kind == 'notes':
+            return 1
+        if region.kind == 'footer_candidate':
+            return 2
+        return 0
+    regions.sort(key=lambda r: (reading_group(r), r.order))
     return [Region(r.box, i, r.kind) for i, r in enumerate(regions)]

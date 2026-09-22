@@ -77,3 +77,27 @@ ordre RTL, langues OCR, en-têtes/pagination, niqqud non destructif, historique,
 La capture multi-écrans réelle et les raccourcis globaux restent à valider
 manuellement sur plusieurs matériels Windows ; les tests ne prétendent pas le
 contraire. Aucun support manuscrit n'est annoncé.
+
+## Corpus réel — שער הכונות, pages imprimées 185–204
+
+Le PDF réel de 20 pages a été rendu et inspecté intégralement hors ligne. Il ne
+contient aucune couche texte. La page imprimée 185 fournit quatre découpes fixes :
+paragraphe, colonne droite, page entière et petites notes. Le corpus, les images,
+les transcriptions et les sorties restent dans `benchmarks/local/`, ignoré par Git.
+
+La mesure a révélé deux défauts concrets puis guidé leur correction : les colonnes
+denses restaient monolithiques, et les pieds de scanner passaient avant les notes.
+Le moteur produit maintenant 5 blocs sur la colonne et 10 sur la page, dans
+l'ordre corps RTL, notes, puis pied. Les blocs incertains comparent `heb`,
+`heb_rashi` et leur consensus ; une sélection explicite de script reste prioritaire.
+
+Résultat provisoire page entière contre la sortie de départ : CER 0 -> 0,00617,
+exactitude sans niqqud 99,38 %, ordre RTL validé, temps 61 s, 10 blocs. La porte
+de non-régression passe (seuil 0,02). Le paragraphe et les notes ont été relus sur
+l'image ; les longues transcriptions de colonne et de page restent signalées
+`truth_verified: false`. Le rapport refuse donc correctement la validation finale
+du corpus réel jusqu'à leur relecture humaine exhaustive. Il ne transforme jamais
+une sortie OCR provisoire en vérité terrain.
+
+Validation code après ce lot : **35 passed**. Benchmark synthétique inchangé sur
+six cas et amélioré sur le niqqud (CER 0,259 -> 0,222), sans régression.

@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent / 'aleph'))
 from PIL import Image, ImageDraw
 import pytest
 import core
-from ocr.engine import models, restore_boxes, combined
+from ocr.engine import models, restore_boxes, combined, score
 from ocr.segmentation import segment
 from ocr.running_elements import filter_batch
 from benchmarks.compare import metrics
@@ -32,12 +32,19 @@ def test_unequal_columns_paragraphs_and_rtl():
 
 
 def test_models_separate_languages():
-    assert models(core.Options()) == ['heb', 'heb_rashi']
+    assert models(core.Options()) == ['heb', 'heb_rashi', 'heb+heb_rashi']
     assert models(core.Options(languages=('heb', 'fra'))) == ['heb+fra']
     assert models(core.Options(script='rashi')) == ['heb_rashi']
     assert models(core.Options(languages=('eng',))) == ['eng']
     with pytest.raises(ValueError):
         models(core.Options(languages=()))
+
+
+def test_auto_script_requires_rashi_to_win_clearly():
+    square = core.Candidate('שלום עולם', 95, [], '', 2, model='heb')
+    rashi = core.Candidate('שלום עולם', 96, [], '', 2, model='heb_rashi')
+    assert score(square, [square, rashi], 'auto') > score(rashi, [square, rashi], 'auto')
+    assert score(square, [square, rashi], 'rashi') < score(rashi, [square, rashi], 'rashi')
 
 
 def test_spanning_title_does_not_interleave_columns():
@@ -71,7 +78,7 @@ def test_uncertain_block_compares_models_and_preserves_raw(monkeypatch):
         return core.Candidate('שלום' if lang == 'heb_rashi' else 'שלים', 96 if lang == 'heb_rashi' else 60, [], label, 1)
     monkeypatch.setattr(core, 'run_tesseract', fake)
     result = core.recognize(layout_image(), core.Options(deskew=False), threading.Event())
-    assert 'heb_rashi' in calls and not any('+' in lang for lang in calls)
+    assert 'heb_rashi' in calls and 'heb+heb_rashi' in calls
     assert 'שלום' in result[0].text and 'שלים' in result[1].text
     assert all(b.model == 'heb_rashi' for b in result[0].blocks)
 
@@ -108,6 +115,7 @@ def test_single_page_or_include_repeated_preserves_everything():
 
 def test_metrics_report_missing_order_and_real_edits():
     assert metrics('שלום עולם', 'שלום עולם')['cer'] == 0
+    assert metrics('שָׁלוֹם', 'שלום')['cer_without_nikud'] == 0
     assert metrics('שָׁלוֹם', 'שלום')['accuracy_without_nikud'] == 1
     assert metrics('א ב', 'ב א', ['א', 'ב'])['reading_order'] is False
     assert metrics('א ב', 'א', ['א', 'ב'])['reading_order'] is False

@@ -15,7 +15,10 @@ def models(options):
     hebrew = [x for x in preferred if x in allowed]
     if not hebrew:
         hebrew = [x for x in ('heb', 'heb_rashi') if x in allowed]
-    return ['+'.join([h] + latin) for h in hebrew] if hebrew else ['+'.join(latin)]
+    choices = ['+'.join([h] + latin) for h in hebrew] if hebrew else ['+'.join(latin)]
+    if options.script in {'auto', 'mixed'} and {'heb', 'heb_rashi'} <= allowed:
+        choices.append('+'.join(['heb', 'heb_rashi'] + latin))
+    return choices
 
 
 def restore_boxes(candidate, original_size, prepared_size, angle, region, page_size):
@@ -50,12 +53,16 @@ def combined(blocks, label):
     return result
 
 
-def score(candidate, peers):
+def score(candidate, peers, script='auto'):
     # Confidence dominates. Stability and character plausibility are supporting
     # signals, not a dictionary or a claim to understand Hebrew semantics.
     stable = max((SequenceMatcher(None, candidate.text, p.text).ratio() for p in peers if p is not candidate), default=1)
     plausible = sum(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05ff' for c in candidate.text) / max(1, len(candidate.text))
-    return candidate.confidence + .3 * stable + .2 * plausible
+    # Rashi's broad training set can be over-confident on ordinary square type.
+    # In automatic mode it must win by a meaningful margin; an explicit Rashi
+    # choice remains unbiased. This is conservative, not dictionary correction.
+    square_prior = 2.0 if script in {'auto', 'mixed'} and candidate.model.split('+')[0] == 'heb' else 0
+    return candidate.confidence + 1.2 * stable + plausible + square_prior
 
 
 def recognize_blocks(image, options, cancel, progress, raw=None, draft_callback=None):
@@ -104,13 +111,13 @@ def recognize_blocks(image, options, cancel, progress, raw=None, draft_callback=
         if first.confidence < 94 or not first.text:
             crop = block.image
             region = next(r for r in regions if r.box == block.box)
-            if len(choices) > 1:
-                block.candidates.append(read(choices[1]))
-            preferred = max(block.candidates, key=lambda c: score(c, block.candidates))
+            for model in choices[1:]:
+                block.candidates.append(read(model))
+            preferred = max(block.candidates, key=lambda c: score(c, block.candidates, options.script))
             block.candidates.append(read(preferred.model, True))
             if max(c.confidence for c in block.candidates) < 75:
                 block.candidates.append(read(preferred.model, False, 3))
-        block.selected = max(range(len(block.candidates)), key=lambda i: (bool(block.candidates[i].text), score(block.candidates[i], block.candidates)))
+        block.selected = max(range(len(block.candidates)), key=lambda i: (bool(block.candidates[i].text), score(block.candidates[i], block.candidates, options.script)))
         best = block.candidates[block.selected]
         uncertain = list(best.uncertain)
         for other in block.candidates:
@@ -123,5 +130,5 @@ def recognize_blocks(image, options, cancel, progress, raw=None, draft_callback=
         # Do not mutate the raw candidate: it remains independently selectable.
         best = replace(best, uncertain=list(dict.fromkeys(uncertain)))
         block.candidates[block.selected] = best
-        block.model, block.score = best.model, score(best, block.candidates)
+        block.model, block.score = best.model, score(best, block.candidates, options.script)
     return [combined(blocks, 'Smart OCR'), raw_result]

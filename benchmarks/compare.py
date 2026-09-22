@@ -43,7 +43,9 @@ def metrics(expected, actual, anchors=()):
         return distance(left, right) / len(left)
     positions = [normalize(actual).find(normalize(anchor)) for anchor in anchors]
     order = (all(p >= 0 for p in positions) and all(a < b for a, b in zip(positions, positions[1:]))) if len(anchors) >= 2 else None
-    return {'cer': cer(True), 'accuracy_without_nikud': 1 - cer(False), 'reading_order': order}
+    cer_without_nikud = cer(False)
+    return {'cer': cer(True), 'cer_without_nikud': cer_without_nikud,
+            'accuracy_without_nikud': 1 - cer_without_nikud, 'reading_order': order}
 
 
 def baseline_engine():
@@ -89,7 +91,8 @@ def main():
             image = core.Document(str(case['document'])).render(case.get('page', 1) - 1, 360, case.get('box'))
         else:
             image = Image.open(case['image']).convert('RGB')
-        row = {'name': case['name'], 'kind': case.get('kind', 'synthetic')}
+        row = {'name': case['name'], 'kind': case.get('kind', 'synthetic'),
+               'truth_verified': case.get('truth_verified', not args.real)}
         for name, engine in [('before', old), ('after', core)]:
             options = dict(script=case.get('script', 'auto'), layout=case.get('layout', 'block'))
             languages = tuple(case.get('languages', ('heb', 'heb_rashi')))
@@ -100,12 +103,17 @@ def main():
             started = time.perf_counter()
             candidate = engine.recognize(image, engine.Options(**options), threading.Event())[0]
             row[name] = {**metrics(case['expected'], candidate.text, case.get('anchors', ())),
-                         'seconds': time.perf_counter() - started, 'text': candidate.text}
+                         'seconds': time.perf_counter() - started,
+                         'block_count': len(getattr(candidate, 'blocks', ())) or 1,
+                         'text': candidate.text}
         row['cer_regression'] = row['after']['cer'] - row['before']['cer']
         rows.append(row)
         print(f"{case['name']}: CER {row['before']['cer']:.3f} -> {row['after']['cer']:.3f}", flush=True)
+    accuracy_gate = all(r['cer_regression'] <= args.max_regression and not (r['before']['reading_order'] is True and r['after']['reading_order'] is False) for r in rows)
     report = {'baseline_commit': BASELINE, 'real': bool(args.real), 'cases': rows,
-              'gate_passed': all(r['cer_regression'] <= args.max_regression and not (r['before']['reading_order'] is True and r['after']['reading_order'] is False) for r in rows)}
+              'all_truth_verified': all(r['truth_verified'] for r in rows),
+              'accuracy_gate_passed': accuracy_gate,
+              'gate_passed': accuracy_gate and all(r['truth_verified'] for r in rows)}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
     return 0 if report['gate_passed'] else 1

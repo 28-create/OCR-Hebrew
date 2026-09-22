@@ -11,9 +11,13 @@ Exécuter depuis le dépôt :
 L'ancien moteur est chargé depuis le commit immuable `aacd560` avec `git show`.
 Le programme ne lance aucun accès réseau. Les deux moteurs reçoivent les mêmes
 images, vérités terrain, scripts et langues. Le rapport indique CER standard,
-exactitude sans niqqud (1-CER, non bornée), temps, sorties complètes et régressions.
+CER et exactitude sans niqqud (1-CER, non bornée), ordre RTL, nombre de blocs,
+temps, sorties complètes et régressions.
 Les caractères de ponctuation comptent ; les espaces consécutifs sont normalisés.
 Les indices de confiance du moteur ne sont pas des mesures de précision.
+Sur un corpus réel, `truth_verified` doit être vrai pour chaque cas. Le rapport
+sépare la porte d'exactitude de la validation finale afin qu'une transcription
+OCR provisoire ne puisse jamais être présentée comme une vérité humaine.
 
 Pour un benchmark réel, créer `benchmarks/local/cases.json` (non versionné) :
 
