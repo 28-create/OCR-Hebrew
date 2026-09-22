@@ -49,3 +49,31 @@ Les six autres CER sont inchangés. Ce n'est pas une garantie sur des scans rée
 Pas de classificateur appris ni dictionnaire hébreu : le score de plausibilité
 est un indice de caractères, la classification de mise en page est heuristique.
 PDF de référence et vérité terrain encore absents ; validation réelle bloquée.
+
+## Étapes 3 et 4 — session, interface et livraison
+
+Fenêtre principale unique : le passage rapide/pro révèle les outils avancés sans
+recréer la fenêtre. Document, page, image, texte canonique, corrections, niqqud,
+variantes et historique restent liés. Ouverture permanente PDF/PNG/JPEG/TIFF/
+BMP/WEBP, toutes pages par défaut, page courante ou syntaxe personnalisée via
+`parse_pages`. Capture, fenêtre et collage sont accessibles dans les deux modes.
+
+Traductions centralisées HE/FR/EN pour la nouvelle fenêtre, ses réglages, erreurs,
+fermeture et actions. Choix de langues OCR séparé. Historique explicite, images
+de session configurables, OCR brut sélectionnable, doublons signalés sans
+suppression silencieuse. L'édition avec niqqud masqué conserve les marques des
+caractères inchangés. Polices hébraïques Windows, taille, aperçu et export DOCX.
+
+Build 0.3.0 : SHA-256 attendus versionnés et vérifiés, archive source récursive,
+workflow GitHub Actions Windows, recette PyInstaller reproductible. Diagnostic
+du plantage historique : PyInstaller embarquait une implémentation ICU de Windows
+à la place du shim système attendu par Qt. Ces deux DLL sont désormais exclues.
+L'exécutable one-file a réussi OCR carré, OCR Rachi, PDF deux pages et smoke test
+de la fenêtre dans un environnement isolé sans Python dans PATH.
+
+Validation finale locale : **34 passed**. Tests dédiés ajoutés pour segmentation,
+ordre RTL, langues OCR, en-têtes/pagination, niqqud non destructif, historique,
+état rapide/pro, langue globale, page par défaut et capture simulée à 100/150/200 %.
+La capture multi-écrans réelle et les raccourcis globaux restent à valider
+manuellement sur plusieurs matériels Windows ; les tests ne prétendent pas le
+contraire. Aucun support manuscrit n'est annoncé.

@@ -38,6 +38,12 @@ debug-dist/
 pyinstaller-build/
 pyinstaller-build-v02/
 pyinstaller-debug/
+pyinstaller-build-v03/
+build-check-*/
+AlephOCR-v03-check.spec
+isolated-test/
+executable-preview.png
+executable-self-test.json
 
 # Test outputs
 tests-sep15-*/

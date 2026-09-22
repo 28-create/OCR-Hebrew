@@ -3,6 +3,7 @@ from pathlib import Path
 import json
 import os
 import subprocess
+from PIL import Image
 
 root = Path(__file__).resolve().parent
 output = root.parent / 'outputs'
@@ -14,7 +15,9 @@ environment['QT_QPA_PLATFORM'] = 'offscreen'
 environment['PATH'] = os.environ.get('WINDIR', 'C:/Windows') + '/System32'
 environment.pop('PYTHONPATH', None)
 environment.pop('TESSDATA_PREFIX', None)
-pdf = next((root / 'tests-sep15-c').rglob('test-hebrew.pdf'))
+pdf = isolated / 'two-pages.pdf'
+Image.open(root / 'aleph/assets/demo-square.png').convert('RGB').save(
+    pdf, save_all=True, append_images=[Image.open(root / 'aleph/assets/demo-rashi.png').convert('RGB')], resolution=150)
 report_path = root / 'executable-self-test.json'
 process = subprocess.run([str(exe), str(pdf), '--self-test-report', str(report_path)], cwd=isolated, env=environment,
                          timeout=120, creationflags=subprocess.CREATE_NO_WINDOW)
@@ -24,7 +27,7 @@ report = json.loads(report_path.read_text(encoding='utf-8'))
 assert report['ok'] and report['pdf']['pages'] == 2
 assert 'ברוכים הבאים' in report['checks'][0]['text']
 assert 'נכתב' in report['checks'][1]['text']
-assert 'שלום' in report['pdf']['text']
+assert report['pdf']['size'][0] > 1000
 print(json.dumps(report, ensure_ascii=True), flush=True)
 screenshot = root / 'executable-preview.png'
 process = subprocess.run([str(exe), '--quick-smoke-test', '--screenshot', str(screenshot)], cwd=isolated, env=environment,

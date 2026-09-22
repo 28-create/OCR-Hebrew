@@ -30,11 +30,11 @@ reconstruction. Le programme n'est pas signé avec un certificat éditeur.
 ## Vérifier
 
 ```powershell
-work/.venv/Scripts/python.exe -m pytest work/test_core.py work/test_app.py work/test_quick.py -q -p no:cacheprovider --basetemp=work/test-run
+work/.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --basetemp=work/test-run
 ```
 
-Les tests couvrent les textes hébreux, le Rachi, les PDF, les sélections,
-les exports, les variantes corrigées et le traitement par lot. Les exemples
+Les tests couvrent les textes hébreux, le Rachi, les PDF, la segmentation RTL,
+les exports, les variantes, le niqqud, l'historique et le traitement par lot. Les exemples
 de reconnaissance sont synthétiques : leurs résultats ne constituent pas
 une mesure de précision sur les livres anciens ou sur tous les styles Rachi.
 

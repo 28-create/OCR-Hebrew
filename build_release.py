@@ -55,23 +55,25 @@ def prepare():
 
 
 def build():
-    command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--onefile', '--windowed',
-        '--name', 'AlephOCR', '--distpath', str(OUTPUT), '--workpath', str(ROOT / 'pyinstaller-build-v02'),
-        '--specpath', str(ROOT), '--icon', str(ASSETS / 'app.ico'),
-        '--add-data', str(ASSETS) + ';assets', '--collect-data', 'pypdfium2', '--collect-data', 'pypdfium2_raw',
-        '--version-file', str(ROOT / 'version_info.txt'), str(SOURCE / 'app.py')]
+    command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean',
+               '--distpath', str(OUTPUT), '--workpath', str(ROOT / 'pyinstaller-build-v03'),
+               str(ROOT / 'AlephOCR.spec')]
     subprocess.run(command, check=True)
     copy(ASSETS / 'logo.png', OUTPUT / 'AlephOCR-logo.png')
     copy(ASSETS / 'logo.svg', OUTPUT / 'AlephOCR-logo.svg')
     with zipfile.ZipFile(OUTPUT / 'AlephOCR-sources.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
-        for file in SOURCE.glob('*.py'):
-            archive.write(file, 'work/aleph/' + file.name)
+        for file in SOURCE.rglob('*.py'):
+            archive.write(file, 'work/aleph/' + file.relative_to(SOURCE).as_posix())
         for file in ASSETS.rglob('*'):
             if file.is_file():
                 archive.write(file, 'work/aleph/assets/' + file.relative_to(ASSETS).as_posix())
-        for name in ['build_release.py', 'version_info.txt', 'test_core.py', 'test_app.py', 'test_quick.py',
-                     'make_demo.py', 'make_benchmark_corpus.py', 'run_benchmark.py']:
+        for name in ['build_release.py', 'fetch_assets.py', 'verify_release.py', 'version_info.txt',
+                     'test_core.py', 'test_app.py', 'test_quick.py', 'test_smart_ocr.py', 'test_session.py',
+                     'conftest.py', 'pytest.ini', 'make_demo.py', 'make_benchmark_corpus.py', 'run_benchmark.py']:
             archive.write(ROOT / name, 'work/' + name)
+        for file in (ROOT / 'benchmarks').rglob('*'):
+            if file.is_file() and 'reports' not in file.parts and 'local' not in file.parts:
+                archive.write(file, 'work/benchmarks/' + file.relative_to(ROOT / 'benchmarks').as_posix())
         for file in (ROOT / 'corpus-v02').rglob('*'):
             if file.is_file():
                 archive.write(file, 'work/corpus-v02/' + file.relative_to(ROOT / 'corpus-v02').as_posix())

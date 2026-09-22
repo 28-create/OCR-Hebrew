@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabe
 from core import Document, Options, Result, Candidate, Cancelled, clean_text, parse_pages, recognize, save_text, ASSETS
 from widgets import PageView, STYLE, app_icon, init_fonts
 
-VERSION = '0.3.0-dev'
+VERSION = '0.3.0'
 
 
 class OcrWorker(QThread):
@@ -651,14 +651,14 @@ class AlephWindow(QMainWindow):
         help_text.setHtml('''<h2>Aleph OCR · OCR hébreu &amp; Rachi</h2>
 <p>Ouvrez un PDF ou une image. Tracez un rectangle autour du passage voulu, cliquez sur <b>Reconnaître la sélection</b>, corrigez si nécessaire et copiez le texte.</p>
 <h3>Choisir la bonne lecture</h3><p><b>Hébreu classique</b> pour les caractères carrés. <b>Rachi</b> utilise un modèle spécialisé dans les caractères imprimés Rachi. <b>Automatique</b> et <b>Page mixte</b> combinent les deux modèles. L’écriture manuscrite et les styles non entraînés ne sont pas pris en charge de façon fiable.</p>
-<p>Pour un commentaire ou une colonne : cadrez-le et choisissez <b>Un bloc / une colonne</b>. Pour deux colonnes de largeur identique : <b>Deux colonnes égales</b> lit la moitié droite, puis la moitié gauche. Pour les mises en page de Talmud, cadrez séparément chaque passage.</p>
+<p>Pour une page ou une colonne, la mise en page automatique cherche les colonnes et paragraphes puis les lit séparément de droite à gauche. Vérifiez toujours l’ordre sur les mises en page complexes.</p>
 <h3>Précision et relecture</h3><p>La précision renforcée compare deux traitements. Le menu au-dessus du texte permet de consulter les deux lectures. Les corrections sont conservées séparément. Le surlignage indique les mots dont l’indice moteur est inférieur à 75 ; un mot non surligné peut aussi être erroné. Cet indice n’est pas un pourcentage d’exactitude.</p>
 <p>Le niqqud reconnu est conservé. Sa reconnaissance n’est pas garantie. Le bouton <b>Retirer le niqqud</b> enlève aussi les signes de cantillation. <b>Joindre les lignes</b> conserve les séparations de paragraphes. Ctrl+Z annule une modification.</p>
 <h3>Copier, exporter et traiter des pages</h3><p>Copiez tout le texte ou seulement les mots sélectionnés dans l’éditeur. L’export Word conserve le sens droite à gauche. Les résultats restent disponibles dans l’historique tant que l’application est ouverte. Exportez-les avant de fermer.</p>
 <p>Le traitement par lot lit des pages entières : indiquez par exemple <b>1-3, 5</b>. L’annulation conserve les résultats déjà terminés. La rotation est réglable par page.</p>
 <h3>Raccourcis</h3><p>Ctrl+O : ouvrir · Ctrl+Entrée : reconnaître · Ctrl+Maj+V : coller une image · Ctrl+Maj+C : copier · Échap : retirer le cadre · Ctrl+molette : zoomer.</p>
 <h3>Confidentialité</h3><p>Aleph OCR fonctionne sans Internet, compte ni abonnement. Les images de travail sont temporaires et supprimées après traitement ; les captures collées sont supprimées à la fermeture normale. Les réglages seuls sont mémorisés sur cet ordinateur.</p>
-<p>Version 0.2.0 · Tesseract 5.5.0 · modèles tessdata_best hébreu/français/anglais et modèle Rachi AvtechScientific / Pninim. Les licences et sources accompagnent l’application.</p>''')
+<p>Version 0.3.0 · Tesseract 5.5.0 · modèles tessdata_best hébreu/français/anglais et modèle Rachi AvtechScientific / Pninim. Les licences et sources accompagnent l’application.</p>''')
         layout.addWidget(help_text)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(dialog.reject)
