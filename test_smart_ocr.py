@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 import pytest
 import core
 from ocr.engine import models, restore_boxes, combined, score
-from ocr.segmentation import segment
+from ocr.segmentation import segment, assess_segmentation
 from ocr.running_elements import filter_batch
 from ocr.script_classifier import classify_script
 from benchmarks.compare import metrics, error_analysis
@@ -30,6 +30,8 @@ def test_unequal_columns_paragraphs_and_rtl():
     assert regions[2].box[2] < 400 and regions[3].box[2] < 400
     assert regions[0].box[1] < regions[1].box[1]
     assert regions[2].box[1] < regions[3].box[1]
+    quality = assess_segmentation(layout_image(), regions)
+    assert quality.score == 1 and quality.number_of_columns == 2
 
 
 def test_models_separate_languages():

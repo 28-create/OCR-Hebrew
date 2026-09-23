@@ -200,6 +200,8 @@ def main():
                          'models': [block.model for block in getattr(candidate, 'blocks', ())],
                          'detected_scripts': [block.detected_script for block in getattr(candidate, 'blocks', ())],
                          'script_confidences': [block.script_confidence for block in getattr(candidate, 'blocks', ())],
+                         'segmentation_score': getattr(candidate, 'segmentation_score', 1),
+                         'segmentation_issues': getattr(candidate, 'segmentation_issues', []),
                          'text': candidate.text}
         row['cer_regression'] = row['after']['cer'] - row['before']['cer']
         target = TARGETS.get(row['kind'])

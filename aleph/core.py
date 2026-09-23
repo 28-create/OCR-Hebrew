@@ -193,6 +193,8 @@ class Candidate:
     model: str = ''
     blocks: list['BlockResult'] = field(default_factory=list)
     decisions: list[WordDecision] = field(default_factory=list)
+    segmentation_score: float = 1
+    segmentation_issues: list[str] = field(default_factory=list)
 
 
 @dataclass

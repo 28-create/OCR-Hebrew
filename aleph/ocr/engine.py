@@ -4,7 +4,7 @@ from collections import Counter
 from difflib import SequenceMatcher
 import math
 import re
-from .segmentation import segment
+from .segmentation import segment, assess_segmentation
 from .script_classifier import classify_script
 
 
@@ -103,6 +103,7 @@ def recognize_blocks(image, options, cancel, progress, raw=None, draft_callback=
     if cancel.is_set():
         raise Cancelled()
     regions = segment(image, options.layout)
+    segmentation_quality = assess_segmentation(image, regions)
     blocks = []
     # Reuse only a raw result produced for this exact image/options by the worker.
     reuse = {b.box: b for b in raw.blocks} if raw else {}
@@ -133,6 +134,8 @@ def recognize_blocks(image, options, cancel, progress, raw=None, draft_callback=
         blocks.append(block)
     raw_blocks = [replace(b, candidates=list(b.candidates)) for b in blocks]
     raw_result = combined(raw_blocks, 'OCR brut')
+    raw_result.segmentation_score = segmentation_quality.score
+    raw_result.segmentation_issues = list(segmentation_quality.issues)
     if draft_callback:
         draft_callback(raw_result)
     if not options.enhanced:
@@ -167,4 +170,7 @@ def recognize_blocks(image, options, cancel, progress, raw=None, draft_callback=
         block.candidates[block.selected] = best
         best.decisions = word_decisions(block, block.selected)
         block.model, block.score = best.model, score(best, block.candidates, options.script)
-    return [combined(blocks, 'Smart OCR'), raw_result]
+    smart = combined(blocks, 'Smart OCR')
+    smart.segmentation_score = segmentation_quality.score
+    smart.segmentation_issues = list(segmentation_quality.issues)
+    return [smart, raw_result]

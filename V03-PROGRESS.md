@@ -136,3 +136,8 @@ Le bonus fixe favorisant `heb` a été retiré. Benchmark réel après retrait :
 paragraphe 1,57 %, colonne 0,94 %, page 1,70 %, notes 1,32 %. La page régresse
 très légèrement par rapport à 1,60 %, mais reste meilleure que l'ancien moteur
 (1,8 %) et sous l'objectif de 2 %. Cette variation est déclarée, pas masquée.
+
+`SegmentationQuality` mesure maintenant les blocs trop hauts/étroits, les
+chevauchements, une page probablement non séparée et le nombre de colonnes.
+Le score et ses alertes sont conservés dans chaque candidat et exportés par le
+benchmark. Ils restent diagnostiques jusqu'à calibration d'un seuil de repli.

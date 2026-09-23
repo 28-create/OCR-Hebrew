@@ -15,6 +15,46 @@ class Region:
     kind: str = 'body'
 
 
+@dataclass(frozen=True)
+class SegmentationQuality:
+    score: float
+    issues: tuple[str, ...]
+    number_of_columns: int
+
+
+def assess_segmentation(image, regions):
+    issues, penalty = [], 0.0
+    if not regions:
+        return SegmentationQuality(0, ('no_text_blocks',), 0)
+    area = max(1, image.width * image.height)
+    body = [region for region in regions if region.kind not in {'header_candidate', 'footer_candidate', 'notes'}]
+    for region in body:
+        x0, y0, x1, y1 = region.box
+        ratio = (x1-x0) * (y1-y0) / area
+        if x1-x0 < image.width * .08:
+            issues.append('very_narrow_block'); penalty += .12
+        if y1-y0 > image.height * .78 and ratio > .35:
+            issues.append('very_tall_block'); penalty += .16
+    for index, left in enumerate(regions):
+        for right in regions[index+1:]:
+            x0, y0 = max(left.box[0], right.box[0]), max(left.box[1], right.box[1])
+            x1, y1 = min(left.box[2], right.box[2]), min(left.box[3], right.box[3])
+            if x1 > x0 and y1 > y0:
+                overlap = (x1-x0) * (y1-y0) / max(1, min((left.box[2]-left.box[0])*(left.box[3]-left.box[1]), (right.box[2]-right.box[0])*(right.box[3]-right.box[1])))
+                if overlap > .12:
+                    issues.append('overlapping_blocks'); penalty += .18
+    centers = sorted((region.box[0] + region.box[2]) / 2 for region in body)
+    columns = 0
+    last = None
+    for center in centers:
+        if last is None or center-last > image.width * .18:
+            columns += 1
+            last = center
+    if len(body) == 1 and image.height > image.width * 1.15 and body[0].box[2]-body[0].box[0] > image.width * .7:
+        issues.append('possible_unsplit_page'); penalty += .22
+    return SegmentationQuality(max(0, 1-penalty), tuple(dict.fromkeys(issues)), columns)
+
+
 def runs(mask):
     edges = np.diff(np.pad(np.asarray(mask, dtype=np.int8), (1, 1)))
     return list(zip(np.flatnonzero(edges == 1).tolist(), np.flatnonzero(edges == -1).tolist()))
