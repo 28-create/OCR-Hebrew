@@ -48,6 +48,9 @@ image.save(str(ASSETS / 'demo.png'))
 image.copy(80, 245, 1530, 370).save(str(ASSETS / 'demo-square.png'))
 image.copy(80, 800, 1530, 375).save(str(ASSETS / 'demo-rashi.png'))
 (ASSETS / 'demo-truth.json').write_text(json.dumps({'square': '\n'.join(square_lines), 'rashi': '\n'.join(rashi_lines)}, ensure_ascii=False, indent=2), encoding='utf-8')
-app_icon().pixmap(128, 128).save(str(ASSETS / 'logo.png'))
-Image.open(ASSETS / 'logo.png').save(ASSETS / 'app.ico', sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128)])
+app_icon().pixmap(512, 512).save(str(ASSETS / 'logo.png'))
+Image.open(ASSETS / 'logo.png').save(
+    ASSETS / 'app.ico',
+    sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
+)
 print('Demo and logo generated.')
