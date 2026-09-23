@@ -9,6 +9,7 @@ import core
 from ocr.engine import models, restore_boxes, combined, score
 from ocr.segmentation import segment
 from ocr.running_elements import filter_batch
+from ocr.script_classifier import classify_script
 from benchmarks.compare import metrics, error_analysis
 
 
@@ -40,10 +41,16 @@ def test_models_separate_languages():
         models(core.Options(languages=()))
 
 
-def test_auto_script_requires_rashi_to_win_clearly():
+def test_visual_script_classifier_uses_pixels_not_ocr_confidence():
+    with Image.open(core.ASSETS / 'demo-square.png') as square:
+        assert classify_script(square).label == 'square'
+    with Image.open(core.ASSETS / 'demo-rashi.png') as rashi:
+        assert classify_script(rashi).label == 'rashi'
+
+
+def test_candidate_score_has_no_unmeasured_square_bonus():
     square = core.Candidate('שלום עולם', 95, [], '', 2, model='heb')
     rashi = core.Candidate('שלום עולם', 96, [], '', 2, model='heb_rashi')
-    assert score(square, [square, rashi], 'auto') > score(rashi, [square, rashi], 'auto')
     assert score(square, [square, rashi], 'rashi') < score(rashi, [square, rashi], 'rashi')
 
 

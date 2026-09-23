@@ -207,6 +207,8 @@ class BlockResult:
     score: float = 0
     included: bool = True
     exclusion_reason: str = ''
+    detected_script: str = 'uncertain'
+    script_confidence: float = 0
 
 
 @dataclass

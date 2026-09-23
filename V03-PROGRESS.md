@@ -124,3 +124,15 @@ calibration reste descriptive et ne justifie pas encore un pourcentage utilisate
 Une structure `WordDecision` conserve pour chaque mot le texte sélectionné, les
 alternatives, la confiance moteur, la force du consensus, le bloc source, la
 boîte et le statut incertain. Elle n'applique aucune correction irréversible.
+
+Une première étape `classify_script(block_image)` analyse uniquement les pixels :
+densité d'encre, continuité horizontale/verticale, longueurs de traits et gradients.
+Elle distingue les références carrée/Rachi mais refuse une décision lorsque le
+scan réel est trop éloigné des deux références. Elle reste diagnostique et ne
+pilote pas encore le moteur : la généralisation doit être mesurée sur plusieurs
+livres avant de supprimer des candidats OCR.
+
+Le bonus fixe favorisant `heb` a été retiré. Benchmark réel après retrait :
+paragraphe 1,57 %, colonne 0,94 %, page 1,70 %, notes 1,32 %. La page régresse
+très légèrement par rapport à 1,60 %, mais reste meilleure que l'ancien moteur
+(1,8 %) et sous l'objectif de 2 %. Cette variation est déclarée, pas masquée.

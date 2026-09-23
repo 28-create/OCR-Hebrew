@@ -198,6 +198,8 @@ def main():
                          'block_count': len(getattr(candidate, 'blocks', ())) or 1,
                          'engine_confidence': candidate.confidence,
                          'models': [block.model for block in getattr(candidate, 'blocks', ())],
+                         'detected_scripts': [block.detected_script for block in getattr(candidate, 'blocks', ())],
+                         'script_confidences': [block.script_confidence for block in getattr(candidate, 'blocks', ())],
                          'text': candidate.text}
         row['cer_regression'] = row['after']['cer'] - row['before']['cer']
         target = TARGETS.get(row['kind'])

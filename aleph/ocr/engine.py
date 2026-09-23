@@ -5,6 +5,7 @@ from difflib import SequenceMatcher
 import math
 import re
 from .segmentation import segment
+from .script_classifier import classify_script
 
 
 def models(options):
@@ -93,11 +94,7 @@ def score(candidate, peers, script='auto'):
     # signals, not a dictionary or a claim to understand Hebrew semantics.
     stable = max((SequenceMatcher(None, candidate.text, p.text).ratio() for p in peers if p is not candidate), default=1)
     plausible = sum(c.isalnum() or c.isspace() or '\u0590' <= c <= '\u05ff' for c in candidate.text) / max(1, len(candidate.text))
-    # Rashi's broad training set can be over-confident on ordinary square type.
-    # In automatic mode it must win by a meaningful margin; an explicit Rashi
-    # choice remains unbiased. This is conservative, not dictionary correction.
-    square_prior = 2.0 if script in {'auto', 'mixed'} and candidate.model.split('+')[0] == 'heb' else 0
-    return candidate.confidence + 1.2 * stable + plausible + square_prior
+    return candidate.confidence + 1.2 * stable + plausible
 
 
 def recognize_blocks(image, options, cancel, progress, raw=None, draft_callback=None):
@@ -114,6 +111,7 @@ def recognize_blocks(image, options, cancel, progress, raw=None, draft_callback=
             raise Cancelled()
         progress(f'OCR {region.order + 1}/{len(regions)}')
         crop = image.crop(region.box)
+        classification = classify_script(crop) if options.script in {'auto', 'mixed'} else None
         psm = 7 if options.layout == 'line' else 6
 
         def read(model, binary=False, mode=psm):
@@ -129,7 +127,9 @@ def recognize_blocks(image, options, cancel, progress, raw=None, draft_callback=
             return candidate
 
         first = reuse[region.box].candidates[0] if region.box in reuse else read(choices[0])
-        block = BlockResult(region.box, region.order, region.kind, crop, [first], model=first.model)
+        block = BlockResult(region.box, region.order, region.kind, crop, [first], model=first.model,
+                            detected_script=classification.label if classification else options.script,
+                            script_confidence=classification.confidence if classification else 1)
         blocks.append(block)
     raw_blocks = [replace(b, candidates=list(b.candidates)) for b in blocks]
     raw_result = combined(raw_blocks, 'OCR brut')
