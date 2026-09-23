@@ -101,3 +101,26 @@ une sortie OCR provisoire en vérité terrain.
 
 Validation code après ce lot : **35 passed**. Benchmark synthétique inchangé sur
 six cas et amélioré sur le niqqud (CER 0,259 -> 0,222), sans régression.
+
+## Phase qualité réelle - vérité vérifiée et erreurs détaillées
+
+La page imprimée 185 a été relue visuellement par bandes à partir du même rendu
+que le benchmark. La transcription conserve l'orthographe, les abréviations,
+geresh/gershayim, en-tête, deux colonnes RTL, notes et pied du scanner. Les quatre
+cas sont désormais `truth_verified: true`; la porte réelle passe.
+
+Résultats vérifiés sans niqqud : paragraphe 1,57 % (objectif 1 %, non atteint),
+colonne 0,94 % (objectif 1,5 %, atteint), page 1,60 % (objectif 2 %, atteint),
+notes 1,32 % (objectif 4 %, atteint). L'ordre de blocs ne présente aucune erreur.
+La page passe de 1,8 % avec le moteur historique à 1,6 % avec le moteur courant.
+
+Le benchmark mesure maintenant substitutions, omissions, insertions, espaces,
+ponctuation, ״, ׳, niqqud, lignes candidates fusionnées/coupées, mots inversés,
+ordre des blocs et paires de lettres réellement substituées. Il publie aussi les
+objectifs par zone, statistiques par livre, modèles choisis, temps, nombre de
+blocs et une première table confiance/erreur. Sur seulement quatre cas, cette
+calibration reste descriptive et ne justifie pas encore un pourcentage utilisateur.
+
+Une structure `WordDecision` conserve pour chaque mot le texte sélectionné, les
+alternatives, la confiance moteur, la force du consensus, le bloc source, la
+boîte et le statut incertain. Elle n'applique aucune correction irréversible.

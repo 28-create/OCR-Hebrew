@@ -19,6 +19,14 @@ Sur un corpus réel, `truth_verified` doit être vrai pour chaque cas. Le rappor
 sépare la porte d'exactitude de la validation finale afin qu'une transcription
 OCR provisoire ne puisse jamais être présentée comme une vérité humaine.
 
+Le rapport réel ventile aussi les éditions observées : substitutions, omissions,
+insertions, espaces, ponctuation, gershayim, geresh, niqqud, lignes potentiellement
+fusionnées/coupées, ordre des blocs et paires de lettres substituées. Les paires
+ne viennent d'aucune liste supposée : elles sont comptées dans les sorties. Les
+écarts de nombre de lignes sont signalés comme *candidats* car un retour visuel
+peut être volontaire. Les objectifs de développement sont 1 % (paragraphe),
+1,5 % (colonne), 2 % (page) et 4 % (petites notes), tous sans niqqud.
+
 Pour un benchmark réel, créer `benchmarks/local/cases.json` (non versionné) :
 
 ```json

@@ -1,5 +1,6 @@
 """Block OCR, adaptive candidates, explicit source geometry and raw reuse."""
 from dataclasses import replace
+from collections import Counter
 from difflib import SequenceMatcher
 import math
 import re
@@ -49,8 +50,42 @@ def combined(blocks, label):
     result = Candidate('\n\n'.join(b.candidates[b.selected].text for b in included if b.candidates[b.selected].text),
         sum(b.candidates[b.selected].confidence * b.candidates[b.selected].words for b in included) / max(1, words),
         list(dict.fromkeys(w for b in included for w in b.candidates[b.selected].uncertain)), label, words,
-        [box for b in included for box in b.candidates[b.selected].boxes], blocks=blocks)
+        [box for b in included for box in b.candidates[b.selected].boxes], blocks=blocks,
+        decisions=[decision for b in included for decision in b.candidates[b.selected].decisions])
     return result
+
+
+def word_decisions(block, selected):
+    """Expose candidate agreement per word without rewriting recognized text."""
+    from core import WordDecision
+    chosen = block.candidates[selected]
+    words = chosen.text.split()
+    alternatives = [Counter({word: 1}) for word in words]
+    for peer in block.candidates:
+        if peer is chosen:
+            continue
+        peer_words = peer.text.split()
+        for tag, i, j, k, m in SequenceMatcher(None, words, peer_words, autojunk=False).get_opcodes():
+            if tag == 'equal':
+                for offset, word in enumerate(peer_words[k:m]):
+                    alternatives[i + offset][word] += 1
+            elif tag == 'replace':
+                for offset, word in enumerate(peer_words[k:m][:j-i]):
+                    alternatives[i + offset][word] += 1
+    decisions = []
+    denominator = max(1, len(block.candidates))
+    for index, word in enumerate(words):
+        choices = alternatives[index]
+        strength = choices[word] / denominator
+        box = chosen.boxes[index] if index < len(chosen.boxes) else None
+        confidence = box[5] if box else chosen.confidence
+        bbox = tuple(box[1:5]) if box else None
+        decisions.append(WordDecision(
+            word, [text for text, _ in choices.most_common() if text != word],
+            confidence, strength, block.order, bbox,
+            strength < .67 or word in chosen.uncertain,
+        ))
+    return decisions
 
 
 def score(candidate, peers, script='auto'):
@@ -130,5 +165,6 @@ def recognize_blocks(image, options, cancel, progress, raw=None, draft_callback=
         # Do not mutate the raw candidate: it remains independently selectable.
         best = replace(best, uncertain=list(dict.fromkeys(uncertain)))
         block.candidates[block.selected] = best
+        best.decisions = word_decisions(block, block.selected)
         block.model, block.score = best.model, score(best, block.candidates, options.script)
     return [combined(blocks, 'Smart OCR'), raw_result]

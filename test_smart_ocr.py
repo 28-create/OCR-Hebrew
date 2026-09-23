@@ -9,7 +9,7 @@ import core
 from ocr.engine import models, restore_boxes, combined, score
 from ocr.segmentation import segment
 from ocr.running_elements import filter_batch
-from benchmarks.compare import metrics
+from benchmarks.compare import metrics, error_analysis
 
 
 def layout_image():
@@ -81,6 +81,10 @@ def test_uncertain_block_compares_models_and_preserves_raw(monkeypatch):
     assert 'heb_rashi' in calls and 'heb+heb_rashi' in calls
     assert 'שלום' in result[0].text and 'שלים' in result[1].text
     assert all(b.model == 'heb_rashi' for b in result[0].blocks)
+    decision = result[0].decisions[0]
+    assert decision.selected_text == 'שלום'
+    assert 'שלים' in decision.alternatives
+    assert decision.source_block == 0
 
 
 def test_word_geometry_maps_border_crop_and_scale():
@@ -120,3 +124,12 @@ def test_metrics_report_missing_order_and_real_edits():
     assert metrics('א ב', 'ב א', ['א', 'ב'])['reading_order'] is False
     assert metrics('א ב', 'א', ['א', 'ב'])['reading_order'] is False
     assert metrics('א ב', 'א ב', ['א', 'ב'])['reading_order'] is True
+
+
+def test_error_analysis_measures_observed_categories():
+    result = error_analysis('דבר ״א׳״\nשורה שניה', 'רבר ״א״\nשורהשניה', ['דבר', 'שניה'])
+    assert result['substitution'] == 1
+    assert result['incorrect_space'] == 1
+    assert result['geresh'] == 1
+    assert result['letter_substitution_pairs'] == {'ד/ר': 1}
+    assert result['block_order_errors'] == 1

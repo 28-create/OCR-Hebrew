@@ -172,6 +172,17 @@ class Options:
 
 
 @dataclass
+class WordDecision:
+    selected_text: str
+    alternatives: list[str]
+    engine_confidence: float
+    consensus_strength: float
+    source_block: int
+    bbox: tuple[float, float, float, float] | None = None
+    uncertain: bool = False
+
+
+@dataclass
 class Candidate:
     text: str
     confidence: float
@@ -181,6 +192,7 @@ class Candidate:
     boxes: list[tuple[str, float, float, float, float, float]] = field(default_factory=list)
     model: str = ''
     blocks: list['BlockResult'] = field(default_factory=list)
+    decisions: list[WordDecision] = field(default_factory=list)
 
 
 @dataclass
