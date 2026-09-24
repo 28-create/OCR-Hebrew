@@ -5,7 +5,7 @@
     <path d="M19 39V19H39 M89 19h20v20 M19 89v20h20 M89 109h20V89"/>
   </g>
   <g fill="#f8f4e9">
-    <path d="M38 34l10-7 46 57-12 9z M39 53l15 15-8 22H29l9-20z M81 31h18L80 65 69 51z"/>
+    <path d="M36 33l12-8 44 62-12 8z M64 58l17-28h18L77 66z M64 62L47 90H29l22-36z"/>
   </g>
   <path d="M34 98h16l14 7 14-7h16" fill="none" stroke="#d6b86f" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
