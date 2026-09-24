@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <title>Aleph OCR — variante C, traits plus fins et modernes</title>
+  <rect x="2" y="2" width="124" height="124" rx="29" fill="#123e34"/>
+  <g fill="none" stroke="#d3b779" stroke-width="3.7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 37V22H37 M91 22h15v15 M22 91v15h15 M91 106h15V91"/>
+  </g>
+  <g fill="#f8f4e9">
+    <path d="M42 36l7-5 40 52-8 6z"/>
+    <path d="M40 55l11 12-8 19H31l7-14z"/>
+    <path d="M82 35h14L81 63 73 51z"/>
+  </g>
+  <path d="M37 93h13l14 6 14-6h13" fill="none" stroke="#d3b779" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

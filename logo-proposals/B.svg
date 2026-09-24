@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <title>Aleph OCR — variante B, davantage d’espace entre les barres</title>
+  <rect x="2" y="2" width="124" height="124" rx="29" fill="#123e34"/>
+  <g fill="none" stroke="#ccaf72" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 37V23H36 M92 23h14v14 M22 91v14h14 M92 105h14V91"/>
+  </g>
+  <g fill="#f8f4e9">
+    <path d="M40 36l8-6 42 52-9 6z"/>
+    <path d="M39 55l11 12-8 19H30l7-14z"/>
+    <path d="M83 34h14L82 63 73 51z"/>
+  </g>
+  <path d="M36 93h14l14 6 14-6h14" fill="none" stroke="#ccaf72" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

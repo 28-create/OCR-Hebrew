@@ -25,6 +25,8 @@ PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64os
 WizardStyle=modern
+LanguageDetectionMethod=uilanguage
+ShowLanguageDialog=yes
 SetupIconFile={#SourceDir}\_internal\assets\app.ico
 UninstallDisplayIcon={app}\AlephOCR.exe
 UninstallDisplayName=Aleph OCR
@@ -42,14 +44,20 @@ VersionInfoProductName=Aleph OCR
 VersionInfoCompany=Aleph OCR
 
 [Languages]
-Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
+Name: "fr"; MessagesFile: "compiler:Languages\French.isl"
+Name: "he"; MessagesFile: "compiler:Languages\Hebrew.isl"
+
+[LangOptions]
+he.LanguageName=עברית
 
 [CustomMessages]
 fr.DesktopShortcut=Créer un raccourci sur le Bureau
 en.DesktopShortcut=Create a desktop shortcut
+he.DesktopShortcut=צור קיצור דרך בשולחן העבודה
 fr.KeepSettings=Conserver les préférences Aleph OCR ? Choisissez Non uniquement pour les supprimer.
 en.KeepSettings=Keep Aleph OCR preferences? Choose No only to remove them.
+he.KeepSettings=האם לשמור את הגדרות Aleph OCR? בחרו לא רק אם ברצונכם למחוק אותן.
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:DesktopShortcut}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked

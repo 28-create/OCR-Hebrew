@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <title>Aleph OCR — variante A, fidèle au logo initial</title>
+  <rect x="2" y="2" width="124" height="124" rx="29" fill="#123e34"/>
+  <g fill="none" stroke="#ccaf72" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M23 37V24H36 M92 24h13v13 M23 89v13h13 M92 102h13V89"/>
+  </g>
+  <g fill="#f8f4e9">
+    <path d="M40 37l8-6 42 51-9 6z"/>
+    <path d="M42 54l11 13-8 17H33l6-13z"/>
+    <path d="M80 35h14L80 61l-8-10z"/>
+  </g>
+  <path d="M37 91h13l14 6 14-6h13" fill="none" stroke="#ccaf72" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
