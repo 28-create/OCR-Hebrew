@@ -7,7 +7,9 @@ from PIL import Image
 
 root = Path(__file__).resolve().parent
 output = root.parent / 'outputs'
-exe = output / 'AlephOCR.exe'
+exe = root / 'release-stage' / 'onedir' / 'AlephOCR' / 'AlephOCR.exe'
+installer = output / 'AlephOCR-Setup.exe'
+assert exe.is_file() and installer.is_file(), 'Build the installer first'
 isolated = root / 'isolated-test'
 isolated.mkdir(exist_ok=True)
 environment = os.environ.copy()
@@ -35,3 +37,4 @@ process = subprocess.run([str(exe), '--quick-smoke-test', '--screenshot', str(sc
 print('Executable UI exit:', process.returncode, flush=True)
 assert process.returncode == 0 and screenshot.stat().st_size > 10000
 print('Executable and user interface verified.', flush=True)
+print(f'Installer ready: {installer.name} ({installer.stat().st_size:,} bytes)', flush=True)

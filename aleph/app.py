@@ -4,6 +4,7 @@ import argparse
 import json
 from html import escape
 from pathlib import Path
+import os
 import sys
 import tempfile
 import threading
@@ -18,8 +19,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabe
 
 from core import Document, Options, Result, Candidate, Cancelled, clean_text, parse_pages, recognize, save_text, ASSETS
 from widgets import PageView, STYLE, app_icon, init_fonts
-
-VERSION = '0.3.0'
+from version import VERSION
 
 
 class OcrWorker(QThread):
@@ -650,7 +650,7 @@ class AlephWindow(QMainWindow):
         layout = QVBoxLayout(dialog)
         help_text = QTextEdit()
         help_text.setReadOnly(True)
-        help_text.setHtml('''<h2>Aleph OCR · OCR hébreu &amp; Rachi</h2>
+        help_text.setHtml(f'''<h2>Aleph OCR · OCR hébreu &amp; Rachi</h2>
 <p>Ouvrez un PDF ou une image. Tracez un rectangle autour du passage voulu, cliquez sur <b>Reconnaître la sélection</b>, corrigez si nécessaire et copiez le texte.</p>
 <h3>Choisir la bonne lecture</h3><p><b>Hébreu classique</b> pour les caractères carrés. <b>Rachi</b> utilise un modèle spécialisé dans les caractères imprimés Rachi. <b>Automatique</b> et <b>Page mixte</b> combinent les deux modèles. L’écriture manuscrite et les styles non entraînés ne sont pas pris en charge de façon fiable.</p>
 <p>Pour une page ou une colonne, la mise en page automatique cherche les colonnes et paragraphes puis les lit séparément de droite à gauche. Vérifiez toujours l’ordre sur les mises en page complexes.</p>
@@ -660,7 +660,7 @@ class AlephWindow(QMainWindow):
 <p>Le traitement par lot lit des pages entières : indiquez par exemple <b>1-3, 5</b>. L’annulation conserve les résultats déjà terminés. La rotation est réglable par page.</p>
 <h3>Raccourcis</h3><p>Ctrl+O : ouvrir · Ctrl+Entrée : reconnaître · Ctrl+Maj+V : coller une image · Ctrl+Maj+C : copier · Échap : retirer le cadre · Ctrl+molette : zoomer.</p>
 <h3>Confidentialité</h3><p>Aleph OCR fonctionne sans Internet, compte ni abonnement. Les images de travail sont temporaires et supprimées après traitement ; les captures collées sont supprimées à la fermeture normale. Les réglages seuls sont mémorisés sur cet ordinateur.</p>
-<p>Version 0.3.0 · Tesseract 5.5.0 · modèles tessdata_best hébreu/français/anglais et modèle Rachi AvtechScientific / Pninim. Les licences et sources accompagnent l’application.</p>''')
+<p>Version {VERSION} · Tesseract 5.5.0 · modèles tessdata_best hébreu/français/anglais et modèle Rachi AvtechScientific / Pninim. Les licences et sources accompagnent l’application.</p>''')
         layout.addWidget(help_text)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(dialog.reject)
@@ -693,10 +693,14 @@ def main():
     parser.add_argument('--screenshot')
     parser.add_argument('--self-test-report')
     args = parser.parse_args()
+    if os.name == 'nt':
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('AlephOCR.AlephOCR')
     application = QApplication(sys.argv[:1])
     init_fonts()
     application.setApplicationName('Aleph OCR')
     application.setApplicationVersion(VERSION)
+    application.setWindowIcon(app_icon())
     application.setStyle('Fusion')
     application.setStyleSheet(STYLE)
     if args.self_test_report:

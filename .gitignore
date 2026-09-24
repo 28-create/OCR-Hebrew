@@ -35,6 +35,9 @@ Desktop.ini
 
 # Generated releases
 release-stage/
+tools/
+innosetup-*.exe
+innosetup-*.log
 debug-dist/
 pyinstaller-build/
 pyinstaller-build-v02/
@@ -43,6 +46,8 @@ pyinstaller-build-v03/
 build-check-*/
 AlephOCR-v03-check.spec
 isolated-test/
+installer-check/
+startup-*.png
 executable-preview.png
 executable-self-test.json
 

@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel, QPush
 
 from core import Options, Candidate, recognize, probable_overlap, without_nikud
 from widgets import app_icon, pil_pixmap
+from version import VERSION
 
 
 class FitImageLabel(QWidget):
@@ -269,7 +270,7 @@ class QuickWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('Aleph OCR — OCR עברית')
+        self.setWindowTitle(f'Aleph OCR {VERSION} — OCR עברית')
         self.setWindowIcon(app_icon())
         self.resize(940, 520)
         self.setMinimumSize(660, 360)

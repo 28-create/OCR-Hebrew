@@ -17,20 +17,34 @@ work/.venv/Scripts/python.exe work/aleph/app.py
 L'installation des bibliothèques nécessite Internet ; leur utilisation non.
 Le moteur et les modèles OCR sont inclus dans `work/aleph/assets`.
 
-## Reconstruire l'exécutable
+## Construire l'installateur Windows
 
 ```powershell
 work/.venv/Scripts/python.exe work/build_release.py
 ```
 
-Le fichier produit est `outputs/AlephOCR.exe`. Les bibliothèques Qt sont
-partagées et peuvent être remplacées dans l'environnement source avant cette
-reconstruction. Le programme n'est pas signé avec un certificat éditeur.
+Le fichier à distribuer est `outputs/AlephOCR-Setup.exe`. Le compilateur
+Inno Setup 6 doit être installé, ou son chemin peut être donné dans la variable
+`INNO_SETUP_ISCC`. Le script construit d'abord une application en dossier
+(`work/release-stage/onedir/AlephOCR`), puis l'installateur. La version est
+définie une seule fois dans `work/aleph/version.py` et est reprise dans
+l'application, les métadonnées Windows et l'installateur.
+
+L'installation propose Program Files par défaut, avec un choix par utilisateur
+sans administrateur. Le menu Démarrer est créé automatiquement ; le raccourci
+Bureau est facultatif. La désinstallation conserve les préférences par défaut
+et demande explicitement avant de les supprimer. Les documents exportés ne
+sont jamais inclus dans la désinstallation. La version actuelle n'est pas
+signée ; une signature de l'EXE et de l'installateur peut être ajoutée plus tard.
+
+Le fichier `outputs/AlephOCR.exe`, lorsqu'il est présent, est l'ancienne
+version portable et n'est pas reconstruit par cette commande.
 
 ## Vérifier
 
 ```powershell
-work/.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --basetemp=work/test-run
+work/.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --basetemp=work/test-run work/test_core.py work/test_app.py work/test_quick.py work/test_smart_ocr.py work/test_session.py
+work/.venv/Scripts/python.exe work/verify_release.py
 ```
 
 Les tests couvrent les textes hébreux, le Rachi, les PDF, la segmentation RTL,

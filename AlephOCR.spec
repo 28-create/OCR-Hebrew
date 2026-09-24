@@ -25,9 +25,8 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='AlephOCR',
     debug=False,
     bootloader_ignore_signals=False,
@@ -43,4 +42,12 @@ exe = EXE(
     entitlements_file=None,
     version=str(root / 'version_info.txt'),
     icon=[str(assets / 'app.ico')],
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    name='AlephOCR',
 )
