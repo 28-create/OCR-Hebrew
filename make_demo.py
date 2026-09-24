@@ -7,9 +7,9 @@ sys.path.insert(0, str(Path(__file__).parent / 'aleph'))
 from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QImage, QPainter, QFont, QFontDatabase, QColor
 from PySide6.QtWidgets import QApplication
-from PIL import Image
+import subprocess
 from core import ASSETS
-from widgets import app_icon, init_fonts
+from widgets import init_fonts
 
 application = QApplication([])
 init_fonts()
@@ -48,9 +48,5 @@ image.save(str(ASSETS / 'demo.png'))
 image.copy(80, 245, 1530, 370).save(str(ASSETS / 'demo-square.png'))
 image.copy(80, 800, 1530, 375).save(str(ASSETS / 'demo-rashi.png'))
 (ASSETS / 'demo-truth.json').write_text(json.dumps({'square': '\n'.join(square_lines), 'rashi': '\n'.join(rashi_lines)}, ensure_ascii=False, indent=2), encoding='utf-8')
-app_icon().pixmap(512, 512).save(str(ASSETS / 'logo.png'))
-Image.open(ASSETS / 'logo.png').save(
-    ASSETS / 'app.ico',
-    sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
-)
+subprocess.run([sys.executable, str(Path(__file__).parent / 'make_logo.py')], check=True)
 print('Demo and logo generated.')

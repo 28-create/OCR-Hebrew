@@ -60,6 +60,7 @@ def copy(source, destination):
 
 
 def prepare():
+    subprocess.run([sys.executable, str(ROOT / 'make_logo.py')], check=True)
     OUTPUT.mkdir(exist_ok=True)
     engine = SOURCE / 'assets/tesseract'
     available = {item.name.lower(): item for item in engine.iterdir() if item.is_file()}
@@ -106,6 +107,12 @@ def build():
                     str(ROOT / 'AlephOCR-Setup.iss')], cwd=ROOT, check=True)
     if not (OUTPUT / 'AlephOCR-Setup.exe').is_file():
         raise RuntimeError('Inno Setup did not produce AlephOCR-Setup.exe')
+    portable_command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean',
+                        '--distpath', str(OUTPUT), '--workpath', str(ROOT / 'pyinstaller-build-portable'),
+                        str(ROOT / 'AlephOCR-portable.spec')]
+    subprocess.run(portable_command, check=True)
+    if not (OUTPUT / 'AlephOCR.exe').is_file():
+        raise RuntimeError('PyInstaller did not produce the portable executable')
     copy(ASSETS / 'logo.png', OUTPUT / 'AlephOCR-logo.png')
     copy(ASSETS / 'logo.svg', OUTPUT / 'AlephOCR-logo.svg')
     with zipfile.ZipFile(OUTPUT / 'AlephOCR-sources.zip', 'w', zipfile.ZIP_DEFLATED) as archive:
@@ -114,7 +121,7 @@ def build():
         for file in ASSETS.rglob('*'):
             if file.is_file():
                 archive.write(file, 'work/aleph/assets/' + file.relative_to(ASSETS).as_posix())
-        for name in ['build_release.py', 'AlephOCR.spec', 'AlephOCR-Setup.iss', 'fetch_assets.py', 'verify_release.py', 'version_info.txt',
+        for name in ['build_release.py', 'AlephOCR.spec', 'AlephOCR-portable.spec', 'AlephOCR-Setup.iss', 'fetch_assets.py', 'verify_release.py', 'version_info.txt',
                      'test_core.py', 'test_app.py', 'test_quick.py', 'test_smart_ocr.py', 'test_session.py',
                      'conftest.py', 'pytest.ini', 'make_demo.py', 'make_logo.py', 'make_benchmark_corpus.py', 'run_benchmark.py']:
             archive.write(ROOT / name, 'work/' + name)
@@ -133,7 +140,7 @@ def build():
                 archive.write(file, file.relative_to(ASSETS / 'licenses').as_posix())
         archive.write(ROOT / 'LICENSE.txt', 'AlephOCR-MIT.txt')
         archive.write(ROOT / 'THIRD-PARTY.txt', 'COMPOSANTS.txt')
-    print(f'Installer ready: {OUTPUT / "AlephOCR-Setup.exe"}', flush=True)
+    print(f'Installer and portable executable ready in {OUTPUT}', flush=True)
 
 
 if __name__ == '__main__':

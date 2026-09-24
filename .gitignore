@@ -43,6 +43,7 @@ pyinstaller-build/
 pyinstaller-build-v02/
 pyinstaller-debug/
 pyinstaller-build-v03/
+pyinstaller-build-portable/
 build-check-*/
 AlephOCR-v03-check.spec
 isolated-test/
@@ -50,10 +51,12 @@ installer-check/
 startup-*.png
 executable-preview.png
 executable-self-test.json
+executable-self-test-*.json
 
 # Test outputs
 tests-sep15-*/
 tests-v02-*/
+test-run/
 
 # Python cache
 .mypy_cache/

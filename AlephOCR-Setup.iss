@@ -28,7 +28,7 @@ WizardStyle=modern
 LanguageDetectionMethod=uilanguage
 ShowLanguageDialog=yes
 SetupIconFile={#SourceDir}\_internal\assets\app.ico
-UninstallDisplayIcon={app}\AlephOCR.exe
+UninstallDisplayIcon={app}\_internal\assets\app.ico
 UninstallDisplayName=Aleph OCR
 OutputDir={#OutputDir}
 OutputBaseFilename=AlephOCR-Setup
@@ -37,7 +37,7 @@ SolidCompression=yes
 CloseApplications=yes
 RestartApplications=no
 UsePreviousAppDir=yes
-ChangesAssociations=no
+ChangesAssociations=yes
 VersionInfoVersion={#ProductVersion}
 VersionInfoDescription=Aleph OCR - installation Windows
 VersionInfoProductName=Aleph OCR
@@ -68,8 +68,8 @@ Source: "LICENSE.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
 Source: "THIRD-PARTY.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\Aleph OCR"; Filename: "{app}\AlephOCR.exe"; WorkingDir: "{app}"; IconFilename: "{app}\AlephOCR.exe"; Comment: "OCR hébreu et Rachi hors ligne"
-Name: "{autodesktop}\Aleph OCR"; Filename: "{app}\AlephOCR.exe"; WorkingDir: "{app}"; IconFilename: "{app}\AlephOCR.exe"; Comment: "OCR hébreu et Rachi hors ligne"; Tasks: desktopicon
+Name: "{autoprograms}\Aleph OCR"; Filename: "{app}\AlephOCR.exe"; WorkingDir: "{app}"; IconFilename: "{app}\_internal\assets\app.ico"; AppUserModelID: "AlephOCR.AlephOCR"; Comment: "OCR hébreu et Rachi hors ligne"
+Name: "{autodesktop}\Aleph OCR"; Filename: "{app}\AlephOCR.exe"; WorkingDir: "{app}"; IconFilename: "{app}\_internal\assets\app.ico"; AppUserModelID: "AlephOCR.AlephOCR"; Comment: "OCR hébreu et Rachi hors ligne"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\AlephOCR.exe"; Description: "{cm:LaunchProgram,Aleph OCR}"; Flags: nowait postinstall skipifsilent

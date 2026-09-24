@@ -23,10 +23,11 @@ Le moteur et les modèles OCR sont inclus dans `work/aleph/assets`.
 work/.venv/Scripts/python.exe work/build_release.py
 ```
 
-Le fichier à distribuer est `outputs/AlephOCR-Setup.exe`. Le compilateur
+Le fichier à installer est `outputs/AlephOCR-Setup.exe`. Le programme portable
+est `outputs/AlephOCR.exe` ; il est reconstruit avec le même logo. Le compilateur
 Inno Setup 6 doit être installé, ou son chemin peut être donné dans la variable
 `INNO_SETUP_ISCC`. Le script construit d'abord une application en dossier
-(`work/release-stage/onedir/AlephOCR`), puis l'installateur. La version est
+(`work/release-stage/onedir/AlephOCR`), puis l'installateur et l'EXE portable. La version est
 définie une seule fois dans `work/aleph/version.py` et est reprise dans
 l'application, les métadonnées Windows et l'installateur.
 
@@ -36,9 +37,6 @@ Bureau est facultatif. La désinstallation conserve les préférences par défau
 et demande explicitement avant de les supprimer. Les documents exportés ne
 sont jamais inclus dans la désinstallation. La version actuelle n'est pas
 signée ; une signature de l'EXE et de l'installateur peut être ajoutée plus tard.
-
-Le fichier `outputs/AlephOCR.exe`, lorsqu'il est présent, est l'ancienne
-version portable et n'est pas reconstruit par cette commande.
 
 ## Vérifier
 

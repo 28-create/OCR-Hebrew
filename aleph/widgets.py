@@ -8,11 +8,14 @@ from PySide6.QtWidgets import QGraphicsView, QGraphicsScene, QGraphicsRectItem
 
 
 def app_icon():
+    root = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
+    icon = QIcon(str(root / 'assets/app.ico'))
+    if not icon.isNull():
+        return icon
     pixmap = QPixmap(512, 512)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    root = Path(getattr(sys, '_MEIPASS', Path(__file__).parent))
     QSvgRenderer(str(root / 'assets/logo.svg')).render(painter)
     painter.end()
     return QIcon(pixmap)
