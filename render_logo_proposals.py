@@ -67,8 +67,9 @@ def main():
         enlarged = images[32].resize((104, 104), Image.Resampling.NEAREST)
         sheet.paste(enlarged, (1117, y + 77), enlarged)
         draw.text((1102, y + 187), '32× agrandi', font=font, fill='#455d56')
-    target = ROOT / 'comparatif.png'
+    target = ROOT / 'comparatif-corrige.png'
     sheet.save(target)
+    sheet.save(ROOT / 'comparatif.png')
     print(target)
 
 

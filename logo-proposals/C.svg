@@ -4,10 +4,10 @@
   <g fill="none" stroke="#d3b779" stroke-width="3.7" stroke-linecap="round" stroke-linejoin="round">
     <path d="M22 37V22H37 M91 22h15v15 M22 91v15h15 M91 106h15V91"/>
   </g>
-  <g fill="#f8f4e9">
+  <g fill="#f8f4e9" transform="translate(-2 0)">
     <path d="M42 36l7-5 40 52-8 6z"/>
-    <path d="M40 55l11 12-8 19H31l7-14z"/>
-    <path d="M82 35h14L81 63 73 51z"/>
+    <path d="M40 55l11 12-8 19H31l7-14z" transform="translate(5.2 0)"/>
+    <path d="M82 35h14L81 63 73 51z" transform="translate(1.5 0)"/>
   </g>
   <path d="M37 93h13l14 6 14-6h13" fill="none" stroke="#d3b779" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
