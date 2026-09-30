@@ -50,6 +50,7 @@ isolated-test/
 installer-check/
 startup-*.png
 executable-preview.png
+v04-source-preview.png
 executable-self-test.json
 executable-self-test-*.json
 
@@ -57,6 +58,8 @@ executable-self-test-*.json
 tests-sep15-*/
 tests-v02-*/
 test-run/
+test-run-v04-*/
+tests-v04-*/
 
 # Python cache
 .mypy_cache/
