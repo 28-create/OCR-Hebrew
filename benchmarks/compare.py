@@ -190,6 +190,8 @@ def main():
                 options['languages'] = languages
             else:
                 options['english'] = bool(set(languages) & {'eng', 'fra'})
+            if 'pipeline' in engine.Options.__dataclass_fields__:
+                options['pipeline'] = 'experimental'
             started = time.perf_counter()
             candidate = engine.recognize(image, engine.Options(**options), threading.Event())[0]
             row[name] = {**metrics(case['expected'], candidate.text, case.get('anchors', ())),

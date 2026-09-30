@@ -19,5 +19,6 @@ def isolated_preferences(monkeypatch):
 
     monkeypatch.setattr('app.QSettings', test_settings)
     monkeypatch.setattr('quick.QSettings', test_settings)
+    monkeypatch.setattr('ui.main_window.QSettings', test_settings)
     for section in ('Quick', 'Professional'):
         test_settings('AlephOCR', section).clear()

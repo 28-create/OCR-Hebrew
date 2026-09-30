@@ -72,7 +72,7 @@ def test_adaptive_raw_reused_and_no_latin(monkeypatch):
         calls.append((lang, psm))
         return core.Candidate('שלום עולם', 97, [], label, 2)
     monkeypatch.setattr(core, 'run_tesseract', fake)
-    result = core.recognize(layout_image(), core.Options(deskew=False), threading.Event(), draft_callback=drafts.append)
+    result = core.recognize(layout_image(), core.Options(deskew=False, pipeline='experimental'), threading.Event(), draft_callback=drafts.append)
     assert len(calls) == 4
     assert all(lang == 'heb' for lang, _ in calls)
     assert len(drafts) == 1 and len(result) == 2
@@ -86,7 +86,7 @@ def test_uncertain_block_compares_models_and_preserves_raw(monkeypatch):
         calls.append(lang)
         return core.Candidate('שלום' if lang == 'heb_rashi' else 'שלים', 96 if lang == 'heb_rashi' else 60, [], label, 1)
     monkeypatch.setattr(core, 'run_tesseract', fake)
-    result = core.recognize(layout_image(), core.Options(deskew=False), threading.Event())
+    result = core.recognize(layout_image(), core.Options(deskew=False, pipeline='experimental'), threading.Event())
     assert 'heb_rashi' in calls and 'heb+heb_rashi' in calls
     assert 'שלום' in result[0].text and 'שלים' in result[1].text
     assert all(b.model == 'heb_rashi' for b in result[0].blocks)

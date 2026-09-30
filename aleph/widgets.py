@@ -54,6 +54,7 @@ class PageView(QGraphicsView):
         self.overlay = None
         self.origin = None
         self.word_highlight = None
+        self.auto_fit = True
         self.setMinimumWidth(240)
 
     def set_image(self, image):
@@ -78,6 +79,7 @@ class PageView(QGraphicsView):
             self.word_highlight = self.canvas.addRect(rect, QPen(QColor('#cc8f35'), 2), QBrush(QColor(255, 191, 72, 65)))
 
     def fit_page(self):
+        self.auto_fit = True
         if not self.page_rect.isEmpty():
             self.fitInView(self.page_rect.adjusted(-14, -14, 14, 14), Qt.AspectRatioMode.KeepAspectRatio)
             self.zoomChanged.emit(round(self.transform().m11() * 100))
@@ -85,6 +87,7 @@ class PageView(QGraphicsView):
     def zoom(self, factor):
         target = self.transform().m11() * factor
         if .05 < target < 8:
+            self.auto_fit = False
             self.scale(factor, factor)
             self.zoomChanged.emit(round(self.transform().m11() * 100))
 
@@ -141,6 +144,22 @@ class PageView(QGraphicsView):
             event.accept()
         else:
             super().wheelEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        self.clear_selection()
+        self.fit_page()
+        event.accept()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.auto_fit:
+            self.fit_page()
+
+    def clear_image(self):
+        self.canvas.clear()
+        self.page_rect = QRectF()
+        self.selection = self.overlay = self.origin = self.word_highlight = None
+        self.selectionChanged.emit(False)
 
 
 STYLE = '''

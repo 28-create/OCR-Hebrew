@@ -122,7 +122,7 @@ def build():
             if file.is_file():
                 archive.write(file, 'work/aleph/assets/' + file.relative_to(ASSETS).as_posix())
         for name in ['build_release.py', 'AlephOCR.spec', 'AlephOCR-portable.spec', 'AlephOCR-Setup.iss', 'fetch_assets.py', 'verify_release.py', 'version_info.txt',
-                     'test_core.py', 'test_app.py', 'test_quick.py', 'test_smart_ocr.py', 'test_session.py',
+                     'test_core.py', 'test_app.py', 'test_quick.py', 'test_smart_ocr.py', 'test_session.py', 'test_v04.py',
                      'conftest.py', 'pytest.ini', 'make_demo.py', 'make_logo.py', 'make_benchmark_corpus.py', 'run_benchmark.py']:
             archive.write(ROOT / name, 'work/' + name)
         for file in (ROOT / 'benchmarks').rglob('*'):

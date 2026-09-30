@@ -1,164 +1,330 @@
-"""One main window: professional mode reveals tools without migrating state.
-
-Reuses QuickWindow capture/history and the existing document worker/PageView.
-The legacy AlephWindow remains available for regression tests during migration.
-"""
+"""Aleph OCR v0.4: one capture, one faithful reading, editable text."""
 from pathlib import Path
 import time
-from PySide6.QtCore import Qt, QRect
-from PySide6.QtGui import QKeySequence, QShortcut, QFont
-from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QComboBox,
-    QLineEdit, QSpinBox, QFileDialog, QMessageBox, QInputDialog, QCheckBox)
+
 from PIL import Image
-from quick import QuickWindow, qimage_to_pil
-from core import Document, Candidate, Options, parse_pages, save_text, clean_text, ASSETS
-from widgets import PageView
+from PySide6.QtCore import Qt, QSettings
+from PySide6.QtGui import QFont, QKeySequence, QShortcut
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabel,
+    QPushButton, QVBoxLayout, QHBoxLayout, QSplitter, QTextEdit, QFileDialog,
+    QInputDialog, QLineEdit, QMenu, QMessageBox, QDialog, QListWidget)
+
+from core import ASSETS, Document, Options, save_text, without_nikud
+from domain.session import CaptureRecord, RawReading
+from domain.text import edit_hidden
+from ocr.faithful import FaithfulWorker
+from quick import GlobalHotkeys
+from widgets import PageView, app_icon
+from version import VERSION
+from .capture import CaptureController
 from .i18n import tr
 
 
-class MainWindow(QuickWindow):
+class MainWindow(QMainWindow):
     def __init__(self):
+        super().__init__()
+        self.settings = QSettings('AlephOCR', 'Quick')
+        self.language = self.settings.value('language', 'he')
+        if self.language not in ('he', 'fr', 'en'):
+            self.language = 'he'
+        self.records = []
+        self.current_index = -1
+        self.current_image = None
         self.document = None
         self.page = 0
-        self.rotations = {}
-        self.professional = False
-        self.dirty = False
-        self.errors = []
+        self.worker = None
+        self._ocr_target = None
+        self._hotkeys = None
+        self._text_updating = False
         self._buttons = []
-        super().__init__()
-        self.resize(1100, 740)
-        self.setMinimumSize(720, 440)
+        self._build()
+        self.capture = CaptureController(self)
+        self.capture.captured.connect(self.receive_capture)
+        self.capture.stateChanged.connect(self.update_actions)
+        self.apply_preferences()
+        self.resize(1160, 760)
+        self.setMinimumSize(700, 490)
         self.setAcceptDrops(True)
-        self.openProfessional.connect(self.toggle_mode)
-        self.apply_font()
-        self.retranslate()
-        self.apply_display(self.display.currentIndex())
+        self.status.setText(self.t('ready') + ' · ' + self.t('privacy'))
 
-    def t(self, key):
-        return tr(key, self.language.currentData() or 'he')
+    def t(self, key, **values):
+        return tr(key, self.language).format(**values)
 
-    def action(self, key, callback, layout):
-        button = QPushButton()
+    @property
+    def current_record(self):
+        return self.records[self.current_index] if 0 <= self.current_index < len(self.records) else None
+
+    def _button(self, key, callback, layout, primary=False, compact=False):
+        button = QPushButton(self.t(key))
         button.clicked.connect(callback)
-        self._buttons.append((button, key))
+        if primary:
+            button.setObjectName('primary')
+        if compact:
+            button.setFixedSize(32, 32)
+            button.setStyleSheet('QPushButton { padding:0; font-size:17px; }')
         layout.addWidget(button)
+        self._buttons.append((button, key))
         return button
 
     def _build(self):
-        super()._build()
-        outer = self.centralWidget().layout()
-        toolbar = QHBoxLayout()
-        self.open_button = self.action('open', self.open_dialog, toolbar)
-        self.window_button = self.action('window', self.capture.capture_window, toolbar)
-        self.paste_button = self.action('paste', self.paste_image, toolbar)
-        self.document_name = QLabel('—')
-        self.document_name.setWordWrap(True)
-        toolbar.addWidget(self.document_name, 1)
-        outer.insertLayout(1, toolbar)
-        self.history_label = QLabel()
-        outer.itemAt(0).layout().insertWidget(3, self.history_label)
-        old = self.image_panel
+        self.setWindowIcon(app_icon())
+        self.setWindowTitle(f'Aleph OCR {VERSION}')
+        root = QWidget()
+        root.setObjectName('v04Root')
+        self.setCentralWidget(root)
+        outer = QVBoxLayout(root)
+        outer.setContentsMargins(18, 14, 18, 11)
+        outer.setSpacing(11)
+
+        top = QHBoxLayout()
+        brand = QLabel('Aleph OCR')
+        brand.setObjectName('brand')
+        top.addWidget(brand)
+        self.badge = QLabel(self.t('faithful'))
+        self.badge.setObjectName('badge')
+        top.addWidget(self.badge)
+        top.addStretch()
+        self.open_button = self._button('open_short', self.open_dialog, top)
+        self.capture_button = self._button('capture', self.capture_action, top, primary=True)
+        self.recognize_button = self._button('read', self.recognize, top)
+        self.copy_button = self._button('copy_short', self.copy_text, top)
+        self.export_button = self._button('export', self.show_export_menu, top)
+        self.export_button.setToolTip(self.t('text_title'))
+        self.history_button = self._button('history', self.show_history, top)
+        self.settings_button = self._button('settings', self.show_settings, top)
+        outer.addLayout(top)
+
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        outer.addWidget(self.splitter, 1)
+        source = QFrame()
+        source.setObjectName('panel')
+        left = QVBoxLayout(source)
+        left.setContentsMargins(14, 14, 14, 14)
+        left.setSpacing(9)
+        source_heading = QHBoxLayout()
+        self.source_title = QLabel(self.t('source_title'))
+        self.source_title.setObjectName('panelTitle')
+        source_heading.addWidget(self.source_title)
+        source_heading.addStretch()
+        self.document_name = QLabel('')
+        self.document_name.setObjectName('muted')
+        self.document_name.setMaximumWidth(240)
+        self.document_name.setToolTip(self.t('source_hint'))
+        source_heading.addWidget(self.document_name)
+        left.addLayout(source_heading)
+
+        local = QHBoxLayout()
+        self.page_label = QLabel('')
+        self.page_label.setObjectName('muted')
+        local.addWidget(self.page_label)
+        self.previous_button = self._button('previous_page', lambda: self.navigate(-1), local, compact=True)
+        self.previous_button.setText('‹')
+        self.next_button = self._button('next_page', lambda: self.navigate(1), local, compact=True)
+        self.next_button.setText('›')
+        local.addStretch()
+        self.zoom_out = self._button('zoom_help', lambda: self.image_panel.zoom(1 / 1.2), local, compact=True)
+        self.zoom_out.setText('−')
+        self.zoom_label = QLabel('100 %')
+        self.zoom_label.setObjectName('muted')
+        self.zoom_label.setMinimumWidth(46)
+        self.zoom_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        local.addWidget(self.zoom_label)
+        self.zoom_in = self._button('zoom_help', lambda: self.image_panel.zoom(1.2), local, compact=True)
+        self.zoom_in.setText('+')
+        self.fit_button = self._button('fit', self._fit, local)
+        self.fit_button.setToolTip(self.t('zoom_help'))
+        left.addLayout(local)
+
         self.image_panel = PageView()
-        self.splitter.replaceWidget(0, self.image_panel)
-        old.deleteLater()
-        self.navigation = QWidget()
-        nav = QHBoxLayout(self.navigation)
-        self.previous = QPushButton('‹')
-        self.previous.clicked.connect(lambda: self.navigate(-1))
-        self.next = QPushButton('›')
-        self.next.clicked.connect(lambda: self.navigate(1))
-        self.page_spin = QSpinBox()
-        self.page_spin.setRange(1, 1)
-        self.page_spin.valueChanged.connect(self.go_to_page)
-        for w in (self.previous, self.page_spin, self.next):
-            nav.addWidget(w)
-        self.scope = QComboBox()
-        for key in ('all', 'current', 'custom'):
-            self.scope.addItem('', key)
-        nav.addWidget(self.scope)
-        self.page_range = QLineEdit()
-        self.page_range.setPlaceholderText('1-3, 5, 8-10')
-        self.page_range.setEnabled(False)
-        self.scope.currentIndexChanged.connect(lambda: self.page_range.setEnabled(self.scope.currentData() == 'custom'))
-        nav.addWidget(self.page_range)
-        self.read_button = self.action('read', self.read_document, nav)
-        self.cancel_button = self.action('cancel', self.cancel_work, nav)
-        outer.insertWidget(2, self.navigation)
-        self.advanced = QWidget()
-        advanced = QVBoxLayout(self.advanced)
-        settings = QHBoxLayout()
-        self.layout_mode = QComboBox()
-        for key in ('auto', 'block', 'line', 'columns'):
-            self.layout_mode.addItem('', key)
-        settings.addWidget(self.layout_mode)
-        self.resolution = QComboBox()
-        for dpi in (300, 360, 450):
-            self.resolution.addItem(f'{dpi} dpi', dpi)
-        self.resolution.setCurrentIndex(1)
-        settings.addWidget(self.resolution)
-        self.action('rotate', self.rotate, settings)
-        self.action('fit', self.image_panel.fit_page, settings)
-        zoom_out, zoom_in = QPushButton('−'), QPushButton('+')
-        zoom_out.clicked.connect(lambda: self.image_panel.zoom(1/1.2))
-        zoom_in.clicked.connect(lambda: self.image_panel.zoom(1.2))
-        settings.addWidget(zoom_out)
-        settings.addWidget(zoom_in)
-        self.action('clear', self.image_panel.clear_selection, settings)
-        advanced.addLayout(settings)
-        variants = QHBoxLayout()
-        self.variants_label = QLabel()
-        variants.addWidget(self.variants_label)
-        self.variants = QComboBox()
-        self.variants.currentIndexChanged.connect(self.select_variant)
-        variants.addWidget(self.variants, 1)
-        self.blocks_label = QLabel()
-        variants.addWidget(self.blocks_label)
-        self.blocks = QComboBox()
-        self.blocks.currentIndexChanged.connect(self.show_block)
-        variants.addWidget(self.blocks, 1)
-        advanced.addLayout(variants)
-        exports = QHBoxLayout()
-        self.action('join', self.join_lines, exports)
-        self.action('native', self.extract_native, exports)
-        self.action('export', lambda: self.export_text(False), exports)
-        self.action('export_all', lambda: self.export_text(True), exports)
-        advanced.addLayout(exports)
-        outer.insertWidget(outer.count() - 2, self.advanced)
-        self.advanced.hide()
-        for sequence, action in [('Ctrl+O', self.open_dialog), ('Ctrl+Shift+V', self.paste_image), ('Ctrl+Return', self.read_document)]:
-            QShortcut(QKeySequence(sequence), self).activated.connect(action)
+        self.image_panel.zoomChanged.connect(lambda value: self.zoom_label.setText(f'{value} %'))
+        self.image_panel.selectionChanged.connect(self.update_actions)
+        self.image_panel.setToolTip(self.t('selection_hint') + '\n' + self.t('zoom_help'))
+        left.addWidget(self.image_panel, 1)
+        image_actions = QHBoxLayout()
+        self.image_hint = QLabel(self.t('source_hint'))
+        self.image_hint.setObjectName('muted')
+        self.image_hint.setWordWrap(True)
+        image_actions.addWidget(self.image_hint, 1)
+        self.save_image_button = self._button('save_image', self.save_image, image_actions)
+        self.add_button = self._button('add', self.capture_action, image_actions)
+        left.addLayout(image_actions)
+        self.splitter.addWidget(source)
 
-    def make_options(self):
-        return Options(script=self.script.currentData(), layout=self.layout_mode.currentData(),
-            dpi=self.resolution.currentData(), languages=tuple(self.settings.value('ocr_languages', ['heb', 'heb_rashi'])),
-            profile=self.profile.currentData(), enhanced=self.settings.value('enhanced', True, type=bool),
-            deskew=self.settings.value('deskew', True, type=bool),
-            ignore_running_headers=self.settings.value('ignore_headers', True, type=bool),
-            ignore_pagination=self.settings.value('ignore_pages', True, type=bool),
-            include_repeated=self.settings.value('include_repeated', False, type=bool))
+        text_panel = QFrame()
+        text_panel.setObjectName('panel')
+        right = QVBoxLayout(text_panel)
+        right.setContentsMargins(14, 14, 14, 14)
+        right.setSpacing(9)
+        text_heading = QHBoxLayout()
+        self.text_title = QLabel(self.t('text_title'))
+        self.text_title.setObjectName('panelTitle')
+        text_heading.addWidget(self.text_title)
+        text_heading.addStretch()
+        self.raw_button = self._button('raw_view', self.view_raw, text_heading)
+        right.addLayout(text_heading)
+        self.editor = QTextEdit()
+        self.editor.setObjectName('hebrewEditor')
+        self.editor.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        self.editor.setPlaceholderText(self.t('editor'))
+        self.editor.textChanged.connect(self._editor_changed)
+        right.addWidget(self.editor, 1)
+        text_actions = QHBoxLayout()
+        self.text_count = QLabel('')
+        self.text_count.setObjectName('muted')
+        text_actions.addWidget(self.text_count)
+        text_actions.addStretch()
+        self.copy_text_button = self._button('copy_short', self.copy_text, text_actions)
+        self.export_text_button = self._button('export', self.show_export_menu, text_actions)
+        right.addLayout(text_actions)
+        self.splitter.addWidget(text_panel)
+        self.splitter.setSizes([610, 520])
 
-    def toggle_mode(self):
-        self.professional = not self.professional
-        self.advanced.setVisible(self.professional)
-        self.apply_display(self.display.currentIndex())
-        self.retranslate()
+        footer = QHBoxLayout()
+        self.status = QLabel()
+        self.status.setObjectName('muted')
+        self.status.setWordWrap(True)
+        footer.addWidget(self.status, 1)
+        self.timing_label = QLabel('')
+        self.timing_label.setObjectName('muted')
+        footer.addWidget(self.timing_label)
+        outer.addLayout(footer)
+        QShortcut(QKeySequence('Ctrl+O'), self).activated.connect(self.open_dialog)
+        QShortcut(QKeySequence('Ctrl+Return'), self).activated.connect(self.recognize)
+        QShortcut(QKeySequence('Ctrl+Shift+C'), self).activated.connect(self.copy_text)
 
-    def apply_display(self, index):
-        super().apply_display(index)
-        self.pro_button.show()
-        if self.professional:
-            for widget in (self.profile, self.script, self.nikud, self.confidence):
-                widget.show()
+    def _fit(self):
+        self.image_panel.fit_page()
+
+    def apply_preferences(self):
+        value = self.settings.value('language', 'he')
+        self.language = value if value in ('he', 'fr', 'en') else 'he'
+        self.setLayoutDirection(Qt.LayoutDirection.RightToLeft if self.language == 'he'
+                                else Qt.LayoutDirection.LeftToRight)
+        self.editor.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        enabled = self.settings.value('v04_always_on_top', False, type=bool)
+        if bool(self.windowFlags() & Qt.WindowType.WindowStaysOnTopHint) != enabled:
+            maximized = self.isMaximized()
+            self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, enabled)
+            if self.isVisible():
+                self.showMaximized() if maximized else self.showNormal()
+        self.editor.setFont(QFont(self.settings.value('font', 'Arial'),
+                                  self.settings.value('font_size', 18, type=int)))
+        self.install_hotkey()
+        for button, key in self._buttons:
+            if button in (self.previous_button, self.next_button, self.zoom_out, self.zoom_in):
+                button.setToolTip(self.t(key))
+            else:
+                button.setText(self.t(key))
+        for button, symbol in ((self.previous_button, '‹'), (self.next_button, '›'),
+                               (self.zoom_out, '−'), (self.zoom_in, '+')):
+            button.setText(symbol)
+        self.source_title.setText(self.t('source_title'))
+        self.text_title.setText(self.t('text_title'))
+        self.badge.setText(self.t('faithful'))
+        self.image_hint.setText(self.t('source_hint'))
+        self.editor.setPlaceholderText(self.t('editor'))
+        record = self.current_record
+        if record and self.nikud_mode() == 'remove' and self.settings.value('v04_last_nikud', 'keep') != 'remove':
+            record.edited_text = without_nikud(record.edited_text)
+        self.settings.setValue('v04_last_nikud', self.nikud_mode())
+        self._show_record_text()
+        self.update_actions()
+
+    def install_hotkey(self):
+        if self._hotkeys:
+            QApplication.instance().removeNativeEventFilter(self._hotkeys)
+            self._hotkeys.close()
+        sequence = self.settings.value('v04_shortcut', 'Ctrl+Shift+O')
+        self._hotkeys = GlobalHotkeys({0xA401: self.capture.begin_selection}, {0xA401: sequence})
+        QApplication.instance().installNativeEventFilter(self._hotkeys)
+        if QApplication.platformName() != 'offscreen' and not self._hotkeys.registered:
+            self.status.setText(self.t('shortcut_unavailable'))
+
+    def nikud_mode(self):
+        return self.settings.value('v04_nikud', 'keep')
+
+    def _show_record_text(self):
+        record = self.current_record
+        text = record.edited_text if record else ''
+        if self.nikud_mode() == 'hide':
+            text = without_nikud(text)
+        self._text_updating = True
+        self.editor.setPlainText(text)
+        self._text_updating = False
+        self.text_count.setText(self.t('text_count', count=len(text)))
+
+    def _editor_changed(self):
+        if self._text_updating:
+            return
+        record = self.current_record
+        if not record:
+            return
+        visible = self.editor.toPlainText()
+        record.edited_text = edit_hidden(record.edited_text, visible) if self.nikud_mode() == 'hide' else visible
+        self.text_count.setText(self.t('text_count', count=len(visible)))
+        self.update_actions()
+
+    def update_actions(self, *unused):
+        busy = self.worker is not None
+        active = bool(self.current_record and self.current_record.image)
+        text = bool(self.current_record and self.current_record.edited_text)
+        idle = self.capture.state == 'idle' if hasattr(self, 'capture') else True
+        for button in (self.open_button, self.capture_button, self.add_button, self.history_button, self.settings_button):
+            button.setEnabled(not busy and idle)
+        self.recognize_button.setEnabled(active and not busy and idle)
+        for button in (self.copy_button, self.copy_text_button, self.export_button, self.export_text_button):
+            button.setEnabled(text and not busy)
+        self.save_image_button.setEnabled(active and not busy)
+        self.raw_button.setEnabled(bool(self.current_record and self.current_record.reading))
+        self.previous_button.setEnabled(bool(self.document and self.page > 0 and not busy))
+        self.next_button.setEnabled(bool(self.document and self.page < self.document.pages - 1 and not busy))
+        for button in (self.zoom_out, self.zoom_in, self.fit_button):
+            button.setEnabled(active)
+        if active and not text:
+            self.recognize_button.setObjectName('primary')
+        else:
+            self.recognize_button.setObjectName('')
+        if text:
+            self.copy_button.setObjectName('primary')
+        else:
+            self.copy_button.setObjectName('')
+        for button in (self.recognize_button, self.copy_button):
+            button.style().unpolish(button)
+            button.style().polish(button)
+
+    def capture_action(self):
+        self.capture.arm()
+
+    def receive_capture(self, image, rect):
+        self.document = None
+        self.page = 0
+        self._add_record(image, self.t('selection'), timings={'capture_ms': round(self.capture.capture_ms, 1)})
+        if self.settings.value('v04_after_capture', 'preview') == 'recognize':
+            self.recognize()
+
+    def _add_record(self, image, source, page=0, document=None, timings=None):
+        if self.current_record and not self.settings.value('retain_image', True, type=bool):
+            self.current_record.image = None
+        record = CaptureRecord(image.copy(), source, page, document, timings=timings or {})
+        self.records.append(record)
+        self.current_index = len(self.records) - 1
+        self.current_image = record.image
+        self.image_panel.set_image(record.image)
+        self.image_hint.setText(self.t('selection_hint'))
+        self.document_name.setText(source)
+        self._show_record_text()
+        self._update_page()
+        self.status.setText(self.t('ready'))
+        self.update_actions()
+        return record
 
     def open_dialog(self):
         if self.worker:
             return
-        path, _ = QFileDialog.getOpenFileName(self, self.t('open'), '', 'PDF / Images (*.pdf *.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)')
+        path, _ = QFileDialog.getOpenFileName(self, self.t('open'), '',
+            'PDF / Images (*.pdf *.png *.jpg *.jpeg *.tif *.tiff *.bmp *.webp)')
         if path:
             self.open_document(path)
-
-    def open_demo(self):
-        self.open_document(str(ASSETS / 'demo.png'))
 
     def open_document(self, path):
         if self.worker:
@@ -169,309 +335,284 @@ class MainWindow(QuickWindow):
             except Exception as error:
                 if getattr(error, 'err_code', None) != 4:
                     raise
-                password, accepted = QInputDialog.getText(self, self.t('password'), self.t('password'), QLineEdit.EchoMode.Password)
-                if not accepted:
+                password, ok = QInputDialog.getText(self, self.t('password'), self.t('password'),
+                                                     QLineEdit.EchoMode.Password)
+                if not ok:
                     return
                 document = Document(path, password)
-            image = document.render(0, self.make_options().dpi)
-            self.document, self.page, self.rotations = document, 0, {}
-            self.current_image, self.current_rect = image, QRect()
-            self.active_history = -1
-            self.scope.setCurrentIndex(0)
-            self.page_range.clear()
-            self.page_spin.blockSignals(True)
-            self.page_spin.setRange(1, document.pages)
-            self.page_spin.setValue(1)
-            self.page_spin.blockSignals(False)
-            self.document_name.setText(Path(path).name)
-            self.show_capture_image(image)
-            if not document.is_pdf and document.pages == 1:
-                self.pending_mode = 'replace'
-                self.start_ocr(image, QRect())
+            image = document.render(0, self.resolution())
+            self.document, self.page = document, 0
+            self._add_record(image, Path(path).name, 0, document)
         except Exception as error:
             self.show_error(str(error))
+
+    def resolution(self):
+        value = self.settings.value('v04_resolution', 'auto')
+        return int(value) if value in ('300', '360', '450') else 360
 
     def navigate(self, delta):
-        self.page_spin.setValue(self.page_spin.value() + delta)
-
-    def go_to_page(self, number):
         if not self.document or self.worker:
             return
+        target = self.page + delta
+        if not 0 <= target < self.document.pages:
+            return
         try:
-            image = self.document.render(number - 1, self.make_options().dpi, rotation=self.rotations.get(number - 1, 0))
-            self.page = number - 1
-            self.current_image = image
-            self.show_capture_image(image)
+            image = self.document.render(target, self.resolution())
+            self.page = target
+            self._add_record(image, Path(self.document.path).name, target, self.document)
         except Exception as error:
             self.show_error(str(error))
 
-    def selected_pages(self):
-        if self.scope.currentData() == 'current':
-            return [self.page]
-        return parse_pages(self.page_range.text() if self.scope.currentData() == 'custom' else '', self.document.pages)
+    def _update_page(self):
+        self.page_label.setText(self.t('page_number', page=self.page + 1, total=self.document.pages)
+                                if self.document else '')
 
-    def read_document(self):
+    def recognize(self):
+        if self.worker or not self.current_record or self.current_record.image is None:
+            return
+        record = self.current_record
+        selection = self.image_panel.normalized_selection()
+        if record.document and record.document.is_pdf and not selection and ' · ' not in record.source:
+            self.status.setText(self.t('select_block_first'))
+            return
+        if selection:
+            x0, y0, x1, y1 = selection
+            image = record.image
+            bounds = (max(0, round(x0 * image.width)), max(0, round(y0 * image.height)),
+                      min(image.width, round(x1 * image.width)), min(image.height, round(y1 * image.height)))
+            if bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
+                return
+            record = self._add_record(image.crop(bounds), record.source + ' · ' + self.t('selection'),
+                                      record.page, record.document)
+        elif record.reading is not None:
+            # A second OCR attempt is a new reading; the first raw result remains
+            # available in its own history entry even if settings changed.
+            record = self._add_record(record.image, record.source, record.page, record.document)
+        options = Options(script=self.settings.value('v04_script', 'square'), layout='block',
+                          dpi=self.resolution(), enhanced=False, deskew=False, typography='none',
+                          ignore_running_headers=False, ignore_pagination=False, pipeline='faithful')
+        self._ocr_target = record
+        self.worker = FaithfulWorker(record.image, options)
+        self.worker.resultReady.connect(self._ocr_finished)
+        self.worker.failed.connect(self.show_error)
+        self.worker.finished.connect(self._worker_closed)
+        self.editor.setReadOnly(True)
+        self.status.setText(self.t('reading'))
+        self.update_actions()
+        self.worker.start()
+
+    def _ocr_finished(self, candidate, diagnostics):
+        started = time.perf_counter()
+        record = self._ocr_target
+        if record is not None:
+            record.reading = RawReading(candidate.text, candidate.model, candidate.confidence)
+            record.edited_text = (without_nikud(candidate.text) if self.nikud_mode() == 'remove'
+                                  else candidate.text)
+            record.timings.update(diagnostics)
+            self._show_record_text()
+            record.timings['display_ms'] = round((time.perf_counter() - started) * 1000, 1)
+            self.status.setText(self.t('done') if candidate.text.strip() else self.t('empty_ocr'))
+            if self.settings.value('v04_diagnostics', False, type=bool):
+                def display_ms(key):
+                    return f'{record.timings.get(key, 0):.0f} ms'
+                self.timing_label.setText(self.t('processing_times', capture=display_ms('capture_ms'),
+                                   ocr=display_ms('ocr_ms'), display=display_ms('display_ms')) +
+                                   (' · ' + self.t('cached') if diagnostics.get('cache_hit') else ''))
+        self.update_actions()
+
+    def _worker_closed(self):
         if self.worker:
+            self.worker.deleteLater()
+        self.worker = None
+        self._ocr_target = None
+        self.editor.setReadOnly(False)
+        self.update_actions()
+
+    def copy_text(self):
+        record = self.current_record
+        if record and record.edited_text:
+            QApplication.clipboard().setText(record.edited_text)
+            self.status.setText(self.t('copied'))
+
+    def show_export_menu(self):
+        if not self.current_record or not self.current_record.edited_text:
             return
-        if not self.document:
-            if self.current_image:
-                self.redo_capture()
+        menu = QMenu(self)
+        menu.addAction('Word (.docx)', lambda: self.export_text('.docx'))
+        menu.addAction(self.t('export_txt'), lambda: self.export_text('.txt'))
+        menu.exec(self.sender().mapToGlobal(self.sender().rect().bottomLeft()))
+
+    def export_text(self, extension='.docx'):
+        record = self.current_record
+        if not record or not record.edited_text:
             return
+        filter_text = 'Word (*.docx)' if extension == '.docx' else 'Texte UTF-8 (*.txt)'
+        path, _ = QFileDialog.getSaveFileName(self, self.t('export'), 'AlephOCR' + extension, filter_text)
+        if not path:
+            return
+        if not Path(path).suffix:
+            path += extension
         try:
-            from app import OcrWorker
-            pages = self.selected_pages()
-            options = self.make_options()
-            from ocr.engine import models
-            models(options)
-            self.last_options = options
-            self.errors = []
-            # A drawn selection is an explicit current-page action.
-            box = self.image_panel.normalized_selection()
-            if box:
-                pages = [self.page]
-            self.worker = OcrWorker(self.document, pages, options, box, dict(self.rotations))
-            self.worker.resultReady.connect(self.receive_document_result)
-            self.worker.failed.connect(self.errors.append)
-            self.worker.finished.connect(self.worker_finished)
-            self.progress.show()
-            self.status.setText(self.t('reading'))
-            self.page_spin.setEnabled(False)
-            self.worker.start()
+            save_text(path, record.edited_text, self.settings.value('font', 'Arial'),
+                      self.settings.value('font_size', 18, type=int))
+            self.status.setText(self.t('text_saved'))
         except Exception as error:
             self.show_error(str(error))
 
-    def receive_document_result(self, result):
-        self.current_image = result.image
-        self.current_rect = QRect()
-        self.page = result.page
-        self.pending_mode, self.base_text = 'replace', ''
-        self.user_edited_draft = False
-        self.active_history = -1
-        self.show_capture_image(result.image)
-        self.show_final(result.candidates)
-        self.page_spin.blockSignals(True)
-        self.page_spin.setValue(result.page + 1)
-        self.page_spin.blockSignals(False)
+    def save_image(self):
+        self._save_image_for(self.current_record)
 
-    def receive_capture(self, image, rect):
-        self.document = None
-        self.page = 0
-        self.document_name.setText(self.t('area'))
-        super().receive_capture(image, rect)
-
-    def paste_image(self):
-        if self.worker:
+    def _save_image_for(self, record):
+        if not record or record.image is None:
+            self.show_error(self.t('no_history_image'))
             return
-        from PySide6.QtWidgets import QApplication
-        image = QApplication.clipboard().image()
-        if image.isNull():
-            self.show_error(self.t('no_image'))
+        path, selected = QFileDialog.getSaveFileName(self, self.t('save_image'), 'AlephOCR-capture.png',
+                           'PNG (*.png);;JPEG (*.jpg);;TIFF (*.tiff);;WEBP (*.webp)')
+        if not path:
             return
-        self.pending_mode = 'replace'
-        self.receive_capture(qimage_to_pil(image), QRect())
+        suffix = { 'PNG': '.png', 'JPEG': '.jpg', 'TIFF': '.tiff', 'WEBP': '.webp' }
+        extension = next((ext for name, ext in suffix.items() if selected.startswith(name)), '.png')
+        if not Path(path).suffix:
+            path += extension
+        try:
+            record.image.save(path)
+            self.status.setText(self.t('image_saved'))
+        except Exception as error:
+            self.show_error(str(error))
 
-    def start_ocr(self, image, rect):
-        super().start_ocr(image, rect)
-        self.status.setText(self.t('reading'))
-
-    def show_draft(self, candidate):
-        super().show_draft(candidate)
-        self.status.setText(self.t('reading'))
-        self.confidence.setText(self.t('raw'))
-
-    def show_final(self, candidates):
-        super().show_final(candidates)
-        if self.active_history >= 0:
-            item = self.items[self.active_history]
-            item.source = Path(self.document.path).name if self.document else self.t('area')
-            item.page, item.document = self.page, self.document
-            self.history.setItemText(self.active_history + 1, f'{item.source} — {item.page + 1} · {time.strftime("%H:%M:%S", time.localtime(item.created))}')
-        self.dirty = True
-        self.populate_variants()
-        self.status.setText(self.t('done'))
-        self.confidence.setText(f'OCR {candidates[0].confidence:.0f}/100')
-        self.history_label.setText(f'{self.t("history")} ({len(self.items)}) ▾')
-        if self.duplicate_chars:
-            self.duplicate.setText(self.t('duplicate'))
-
-    def populate_variants(self):
-        self.variants.blockSignals(True)
-        self.variants.clear()
-        for i, candidate in enumerate(self.candidates):
-            self.variants.addItem(f'{self.t("improved" if i == 0 and len(self.candidates) > 1 else "raw")} · {candidate.confidence:.0f}/100')
-        if 0 <= self.active_history < len(self.items):
-            self.variants.setCurrentIndex(self.items[self.active_history].selected)
-        self.variants.blockSignals(False)
-        self.populate_blocks()
-
-    def select_variant(self, index):
-        if not 0 <= index < len(self.candidates):
+    def view_raw(self):
+        record = self.current_record
+        if not record or not record.reading:
             return
-        self.save_history_text()
-        self.current_candidate = self.candidates[index]
-        item = self.items[self.active_history] if self.active_history >= 0 else None
-        if item:
-            item.selected = index
-        self.internal_text = item.corrections.get(index, self.current_candidate.text) if item else self.current_candidate.text
-        self.apply_nikud()
-        self.populate_blocks()
+        dialog = QDialog(self)
+        dialog.setWindowTitle(self.t('raw_view'))
+        dialog.resize(720, 480)
+        layout = QVBoxLayout(dialog)
+        label = QLabel(self.t('raw_help'))
+        label.setWordWrap(True)
+        layout.addWidget(label)
+        raw = QTextEdit(record.raw_text)
+        raw.setReadOnly(True)
+        raw.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
+        layout.addWidget(raw, 1)
+        buttons = QHBoxLayout()
+        restore = QPushButton(self.t('raw_restore'))
+        def restore_text():
+            if record.edited_text != record.raw_text and QMessageBox.question(
+                dialog, self.t('raw_restore'), self.t('raw_restore_confirm')) != QMessageBox.StandardButton.Yes:
+                return
+            record.edited_text = record.raw_text
+            self._show_record_text()
+            dialog.accept()
+        restore.clicked.connect(restore_text)
+        buttons.addWidget(restore)
+        close = QPushButton(self.t('close'))
+        close.clicked.connect(dialog.accept)
+        buttons.addWidget(close)
+        layout.addLayout(buttons)
+        dialog.exec()
 
-    def populate_blocks(self):
-        self.blocks.blockSignals(True)
-        self.blocks.clear()
-        if self.current_candidate:
-            for block in self.current_candidate.blocks:
-                self.blocks.addItem(f'{block.order + 1} · {block.kind} · {block.model} · {block.score:.0f} · {block.box}')
-        self.blocks.blockSignals(False)
-
-    def show_block(self, index):
-        if self.current_candidate and self.current_image and 0 <= index < len(self.current_candidate.blocks):
-            x0, y0, x1, y1 = self.current_candidate.blocks[index].box
-            w, h = self.current_image.size
-            self.image_panel.set_highlight((x0/w, y0/h, (x1-x0)/w, (y1-y0)/h))
-
-    def restore_history(self, index):
-        super().restore_history(index)
-        if 0 <= self.active_history < len(self.items):
-            item = self.items[self.active_history]
-            self.document, self.page = item.document, item.page
-            self.document_name.setText(item.source)
-            self.profile.setCurrentIndex(max(0, self.profile.findData(item.profile)))
-            if item.options:
-                self.script.setCurrentIndex(max(0, self.script.findData(item.options.script)))
-                self.layout_mode.setCurrentIndex(max(0, self.layout_mode.findData(item.options.layout)))
-                self.resolution.setCurrentIndex(max(0, self.resolution.findData(item.options.dpi)))
-            self.page_spin.blockSignals(True)
-            self.page_spin.setRange(1, self.document.pages if self.document else 1)
-            self.page_spin.setValue(self.page + 1)
-            self.page_spin.blockSignals(False)
-            self.populate_variants()
-            self.variants.blockSignals(True)
-            self.variants.setCurrentIndex(item.selected)
-            self.variants.blockSignals(False)
-
-    def rotate(self):
-        if self.worker or self.current_image is None:
+    def show_history(self):
+        if not self.records:
             return
-        if self.document:
-            self.rotations[self.page] = (self.rotations.get(self.page, 0) + 90) % 360
-            self.go_to_page(self.page + 1)
+        dialog = QDialog(self)
+        dialog.setWindowTitle(self.t('history'))
+        dialog.resize(690, 450)
+        layout = QVBoxLayout(dialog)
+        hint = QLabel(self.t('history_help'))
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        entries = QListWidget()
+        layout.addWidget(entries, 1)
+
+        def populate(select=None):
+            entries.clear()
+            for number, item in enumerate(self.records, 1):
+                created = time.strftime('%H:%M:%S', time.localtime(item.created))
+                text = item.edited_text.strip().splitlines()[0][:52] if item.edited_text.strip() else '—'
+                entries.addItem(f'{number}. {item.source} · {created} · {text}')
+            entries.setCurrentRow(self.current_index if select is None else select)
+        populate()
+
+        def selected():
+            index = entries.currentRow()
+            return self.records[index] if 0 <= index < len(self.records) else None
+
+        actions = QHBoxLayout()
+        def action(key, callback):
+            button = QPushButton(self.t(key))
+            button.clicked.connect(callback)
+            actions.addWidget(button)
+            return button
+        def reopen():
+            index = entries.currentRow()
+            if index >= 0:
+                self.show_record(index)
+                dialog.accept()
+        def move(direction):
+            index = entries.currentRow()
+            target = index + direction
+            if 0 <= index < len(self.records) and 0 <= target < len(self.records):
+                self.records[index], self.records[target] = self.records[target], self.records[index]
+                if self.current_index == index:
+                    self.current_index = target
+                elif self.current_index == target:
+                    self.current_index = index
+                populate(target)
+        action('reopen', reopen)
+        action('copy_short', lambda: QApplication.clipboard().setText(selected().edited_text) if selected() else None)
+        action('save_image', lambda: self._save_image_for(selected()))
+        action('move_up', lambda: move(-1))
+        action('move_down', lambda: move(1))
+        action('copy_zones', lambda: QApplication.clipboard().setText('\n\n'.join(
+               item.edited_text for item in self.records if item.edited_text)))
+        layout.addLayout(actions)
+        dialog.exec()
+
+    def show_record(self, index):
+        if not 0 <= index < len(self.records):
+            return
+        self.current_index = index
+        record = self.records[index]
+        self.document, self.page = record.document, record.page
+        self.current_image = record.image
+        if record.image:
+            self.image_panel.set_image(record.image)
         else:
-            self.current_image = self.current_image.rotate(-90, expand=True, fillcolor='white')
-            self.show_capture_image(self.current_image)
-
-    def cancel_work(self):
-        if self.worker:
-            self.worker.cancel.set()
-
-    def worker_finished(self):
-        super().worker_finished()
-        self.page_spin.setEnabled(True)
-        if self.errors:
-            self.show_error('\n'.join(self.errors))
-            self.errors = []
+            self.image_panel.clear_image()
+        self.document_name.setText(record.source)
+        self._update_page()
+        self._show_record_text()
+        self.update_actions()
 
     def show_settings(self):
         from .settings import show_settings
         show_settings(self)
 
-    def apply_font(self):
-        family = self.settings.value('font', 'Arial')
-        size = self.settings.value('font_size', 18, type=int)
-        self.editor.setFont(QFont(family, size))
-        self.editor.setStyleSheet(f'font-family: "{family.replace(chr(34), "")}"; font-size: {size}pt;')
-
-    def join_lines(self):
-        self.internal_text = clean_text(self.internal_text, join_lines=True)
-        self.apply_nikud()
-        self.save_history_text()
-
-    def extract_native(self):
-        if self.worker or not self.document or not self.document.is_pdf:
-            return
-        try:
-            text = self.document.extract(self.page)
-        except Exception as error:
-            self.show_error(str(error))
-            return
-        if not text:
-            self.show_error(self.t('no_text'))
-            return
-        self.pending_mode, self.base_text, self.user_edited_draft = 'replace', '', False
-        self.show_final([Candidate(text, -1, [], self.t('native'), len(text.split()))])
-
-    def export_text(self, all_results=False):
-        text = '\n\n'.join(f'[{item.source} — {item.page+1}]\n{self.visible_text(item.text)}' for item in self.items) if all_results else self.editor.toPlainText()
-        path, selected = QFileDialog.getSaveFileName(self, self.t('export'), 'AlephOCR.docx', 'Word (*.docx);;Text (*.txt)')
-        if not path:
-            return
-        extension = '.docx' if 'docx' in selected else '.txt'
-        if not Path(path).suffix:
-            path += extension
-            if Path(path).exists():
-                self.show_error(path + ' — ' + self.t('save'))
-                return
-        try:
-            save_text(path, text, self.settings.value('font', 'Arial'), self.settings.value('font_size', 18, type=int))
-        except Exception as error:
-            self.show_error(str(error))
-
-    def copy_all(self):
-        super().copy_all()
-        self.status.setText(self.t('copied'))
-
     def show_error(self, message):
         self.status.setText(f'{self.t("error")} · {message}')
-        self.show()
-
-    def retranslate(self):
-        if not hasattr(self, 'advanced'):
-            return
-        self.setLayoutDirection(Qt.LayoutDirection.RightToLeft if self.language.currentData() == 'he' else Qt.LayoutDirection.LeftToRight)
-        self.editor.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
-        for button, key in self._buttons:
-            button.setText(self.t(key))
-        for button, key in [(self.capture_button, 'area'), (self.add_button, 'add'), (self.redo_button, 'redo'),
-                            (self.copy_button, 'copy'), (self.remove_duplicate, 'delete'), (self.keep_duplicate, 'keep')]:
-            button.setText(self.t(key))
-        self.pro_button.setText(self.t('quick' if self.professional else 'pro'))
-        self.history_label.setText(f'{self.t("history")} ({len(self.items)}) ▾')
-        self.history.setItemText(0, self.t('history'))
-        self.variants_label.setText(self.t('variants'))
-        self.blocks_label.setText(self.t('blocks'))
-        self.gear.setToolTip(self.t('settings'))
-        self.pin.setToolTip(self.t('pin'))
-        self.editor.setPlaceholderText(self.t('editor'))
-        for combo, keys in [(self.display, ('compact', 'mini', 'full')), (self.profile, ('torah', 'general')),
-                            (self.nikud, ('nikud_keep', 'nikud_hide', 'nikud_remove')), (self.scope, ('all', 'current', 'custom')),
-                            (self.layout_mode, ('layout', 'block', 'line', 'columns'))]:
-            for i, key in enumerate(keys):
-                combo.setItemText(i, self.t(key))
-        self.script.setItemText(0, self.t('auto'))
-        self.status.setText(self.t('ready') + ' · ' + self.t('privacy'))
-        self.populate_variants()
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls() and not self.worker:
             event.acceptProposedAction()
 
     def dropEvent(self, event):
-        if not self.worker:
-            for url in event.mimeData().urls():
-                if url.isLocalFile():
-                    self.open_document(url.toLocalFile())
-                    break
+        if self.worker:
+            return
+        for url in event.mimeData().urls():
+            if url.isLocalFile():
+                self.open_document(url.toLocalFile())
+                break
 
     def closeEvent(self, event):
-        if not self.worker and self.dirty and self.internal_text:
-            dialog = QMessageBox(self)
-            dialog.setWindowTitle(self.t('close_title'))
-            dialog.setText(self.t('close_body'))
-            yes = dialog.addButton(self.t('yes'), QMessageBox.ButtonRole.YesRole)
-            no = dialog.addButton(self.t('no'), QMessageBox.ButtonRole.NoRole)
-            dialog.setDefaultButton(no)
-            dialog.exec()
-            if dialog.clickedButton() is not yes:
-                event.ignore()
-                return
-        super().closeEvent(event)
+        if self.worker:
+            self.worker.cancel.set()
+            event.ignore()
+            return
+        if self._hotkeys:
+            QApplication.instance().removeNativeEventFilter(self._hotkeys)
+            self._hotkeys.close()
+            self._hotkeys = None
+        if hasattr(self, 'capture') and self.capture.state != 'idle':
+            self.capture.cleanup()
+        event.accept()

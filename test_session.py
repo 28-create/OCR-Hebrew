@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QApplication
 from core import Candidate, Document, probable_overlap, without_nikud
 from domain.text import edit_hidden
 from widgets import init_fonts
-from ui.main_window import MainWindow
+from ui.legacy_main_window import MainWindow
 from ui.i18n import TEXT, tr
 import pytest
 

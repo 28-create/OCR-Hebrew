@@ -169,6 +169,7 @@ class Options:
     ignore_running_headers: bool = True
     ignore_pagination: bool = True
     include_repeated: bool = False
+    pipeline: str = 'faithful'
 
 
 @dataclass
@@ -261,14 +262,15 @@ def engine_path() -> Path:
     return path
 
 
-def run_tesseract(image: Image.Image, lang: str, psm: int, cancel: threading.Event, label: str) -> Candidate:
+def run_tesseract(image: Image.Image, lang: str, psm: int, cancel: threading.Event, label: str,
+                  preserve_text: bool = False, dpi: int = 360) -> Candidate:
     if cancel.is_set():
         raise Cancelled()
     with tempfile.TemporaryDirectory(prefix='aleph-ocr-') as folder:
         folder = Path(folder)
         source = folder / 'page.png'
         output = folder / 'result'
-        image.save(source, dpi=(360, 360))
+        image.save(source, dpi=(dpi, dpi))
         command = [str(engine_path()), str(source), str(output), '--tessdata-dir', str(ASSETS / 'tesseract' / 'tessdata'),
                    '-l', lang, '--oem', '1', '--psm', str(psm), '-c', 'tessedit_create_txt=1', '-c', 'tessedit_create_tsv=1']
         env = os.environ.copy()
@@ -287,7 +289,9 @@ def run_tesseract(image: Image.Image, lang: str, psm: int, cancel: threading.Eve
         if process.returncode:
             error = (folder / 'errors.log').read_text(encoding='utf-8', errors='replace')
             raise RuntimeError('La reconnaissance a échoué : ' + error[-900:])
-        text = clean_text(output.with_suffix('.txt').read_text(encoding='utf-8'))
+        text = output.with_suffix('.txt').read_text(encoding='utf-8')
+        if not preserve_text:
+            text = clean_text(text)
         rows = list(csv.DictReader(StringIO(output.with_suffix('.tsv').read_text(encoding='utf-8')), delimiter='\t', quoting=csv.QUOTE_NONE))
         word_rows = [(clean_text(row.get('text', '')), float(row.get('conf', -1)), row) for row in rows if row.get('level') == '5']
         word_rows = [(word, conf, row) for word, conf, row in word_rows if word and conf >= 0]
@@ -302,6 +306,11 @@ def run_tesseract(image: Image.Image, lang: str, psm: int, cancel: threading.Eve
 
 def recognize(image: Image.Image, options: Options, cancel: threading.Event, progress=lambda value: None,
               raw=None, draft_callback=None) -> list[Candidate]:
+    if options.pipeline == 'faithful':
+        from ocr.faithful import recognize_faithful
+        return [recognize_faithful(image, options, cancel)]
+    if options.pipeline != 'experimental':
+        raise ValueError('Unknown OCR pipeline')
     from ocr.engine import recognize_blocks
     return recognize_blocks(image, options, cancel, progress, raw, draft_callback)
 

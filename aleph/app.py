@@ -447,7 +447,7 @@ class AlephWindow(QMainWindow):
                        self.enhanced.isChecked(), self.deskew.isChecked(),
                        tuple(code for code, checkbox in self.ocr_languages.items() if checkbox.isChecked()),
                        ignore_running_headers=self.ignore_headers.isChecked(), ignore_pagination=self.ignore_pages.isChecked(),
-                       include_repeated=self.include_repeated.isChecked())
+                       include_repeated=self.include_repeated.isChecked(), pipeline='experimental')
 
     def start_current(self):
         if self.document and not self.worker:
@@ -690,6 +690,7 @@ def main():
     parser.add_argument('document', nargs='?')
     parser.add_argument('--smoke-test', action='store_true')
     parser.add_argument('--quick-smoke-test', action='store_true')
+    parser.add_argument('--experimental', action='store_true', help='Open the legacy Smart OCR developer interface')
     parser.add_argument('--screenshot')
     parser.add_argument('--self-test-report')
     args = parser.parse_args()
@@ -729,21 +730,32 @@ def main():
             window.open_document(args.document)
     else:
         from quick import QUICK_STYLE
-        from ui.main_window import MainWindow
+        if args.experimental:
+            from ui.legacy_main_window import MainWindow
+        else:
+            from ui.main_window import MainWindow
         application.setStyleSheet(STYLE + QUICK_STYLE)
         window = MainWindow()
         window.show()
         if args.document:
             window.open_document(args.document)
         if args.quick_smoke_test:
-            from core import Candidate
             from PIL import Image
             sample = Image.open(ASSETS / 'demo-square.png')
-            window.current_image = sample
-            window.current_rect = QRect(200, 150, 700, 260)
-            window.show_capture_image(sample)
-            window._set_result(Candidate('בשנת 2026 נכתב document.pdf\nברוכים הבאים לאוצר הספרים', 94, ['document.pdf'], 'בדיקה', 8), True)
-            window.display.setCurrentIndex(2)
+            if args.experimental:
+                from core import Candidate
+                window.current_image = sample
+                window.current_rect = QRect(200, 150, 700, 260)
+                window.show_capture_image(sample)
+                window._set_result(Candidate('בשנת 2026 נכתב document.pdf\nברוכים הבאים לאוצר הספרים', 94, ['document.pdf'], 'בדיקה', 8), True)
+                window.display.setCurrentIndex(2)
+            else:
+                from domain.session import RawReading
+                record = window._add_record(sample, 'document.pdf')
+                record.reading = RawReading('ברוכים הבאים לאוצר הספרים', 'heb', 94)
+                record.edited_text = record.raw_text
+                window._show_record_text()
+                window.update_actions()
             def quick_smoke():
                 if args.screenshot:
                     window.grab().save(args.screenshot)

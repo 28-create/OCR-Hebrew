@@ -558,7 +558,7 @@ class QuickWindow(QMainWindow):
         self.worker.start()
 
     def make_options(self):
-        return Options(script=self.script.currentData(), layout='auto', dpi=360, enhanced=True,
+        return Options(pipeline='experimental', script=self.script.currentData(), layout='auto', dpi=360, enhanced=True,
                           deskew=True, languages=tuple(self.settings.value('ocr_languages', ['heb', 'heb_rashi'])),
                           profile=self.profile.currentData(), typography='auto')
 

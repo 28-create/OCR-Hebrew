@@ -75,5 +75,5 @@ def test_real_hebrew_and_rashi_recognition(script):
         row = new
     accuracy = 1 - row[-1] / max(1, len(expected))
     print(json.dumps({'script': script, 'character_accuracy_on_demo': accuracy, 'actual': actual, 'confidence': candidates[0].confidence}, ensure_ascii=True))
-    assert len(candidates) == 2
+    assert len(candidates) == 1
     assert accuracy >= .9, f'{script}: {accuracy:.1%}: {actual}'
