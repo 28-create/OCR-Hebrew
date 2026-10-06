@@ -179,3 +179,35 @@ def test_capture_window_reports_grab_failure_without_crashing(window):
     window.capture._foreground_window()
     assert window.capture.state == 'idle'
     assert window.status.text() == f'{window.t("error")} · {window.t("capture_failed")}'
+
+
+def test_duplicate_suspicion_warns_but_never_deletes(window, monkeypatch):
+    def engine(image, lang, psm, cancel, label, preserve_text=False, dpi=360):
+        return Candidate('בראשית ברא אלוהים את השמים ואת הארץ', 90, [], label, 7)
+    monkeypatch.setattr(core, 'run_tesseract', engine)
+    window._add_record(Image.new('RGB', (40, 30), 'white'), 'first.png')
+    window.recognize()
+    wait_ocr(window)
+    assert window.current_record.overlap_words == 0
+    window._add_record(Image.new('RGB', (40, 30), 'white'), 'second.png')
+    window.recognize()
+    wait_ocr(window)
+    assert len(window.records) == 2
+    assert window.current_record.overlap_words == 7
+    assert window.t('duplicate') in window.status.text()
+    assert window.current_record.raw_text == 'בראשית ברא אלוהים את השמים ואת הארץ'
+
+
+def test_delete_record_keeps_neighbours_and_clears_last(window):
+    first = window._add_record(Image.new('RGB', (30, 20), 'white'), 'a.png')
+    first.edited_text = 'texte un'
+    second = window._add_record(Image.new('RGB', (30, 20), 'white'), 'b.png')
+    second.edited_text = 'texte deux'
+    window.show_record(0)
+    window.delete_record(0)
+    assert len(window.records) == 1
+    assert window.current_record is second
+    assert window.editor.toPlainText() == 'texte deux'
+    window.delete_record(0)
+    assert window.records == [] and window.current_record is None
+    assert window.editor.toPlainText() == ''

@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabe
     QPushButton, QVBoxLayout, QHBoxLayout, QSplitter, QTextEdit, QFileDialog,
     QInputDialog, QLineEdit, QMenu, QMessageBox, QDialog, QListWidget)
 
-from core import ASSETS, Document, Options, hebrew_typography, repair_mixed_rtl, save_text, without_nikud
+from core import ASSETS, Document, Options, hebrew_typography, probable_overlap, repair_mixed_rtl, save_text, without_nikud
 from domain.session import CaptureRecord, RawReading
 from domain.text import edit_hidden
 from ocr.faithful import FaithfulWorker
@@ -439,7 +439,19 @@ class MainWindow(QMainWindow):
             record.timings.update(diagnostics)
             self._show_record_text()
             record.timings['display_ms'] = round((time.perf_counter() - started) * 1000, 1)
-            self.status.setText(self.t('done') if candidate.text.strip() else self.t('empty_ocr'))
+            if candidate.text.strip():
+                # Duplicate suspicion never deletes: it explains the overlap
+                # (shared leading words) and leaves keep/remove to the user.
+                message = self.t('done')
+                previous = self._previous_text(record)
+                count = probable_overlap(previous, record.edited_text)[0] if previous else 0
+                record.overlap_words = count
+                if count:
+                    message += f" · {self.t('duplicate')} ({count})"
+                self.status.setText(message)
+            else:
+                record.overlap_words = 0
+                self.status.setText(self.t('empty_ocr'))
             if self.settings.value('v04_diagnostics', False, type=bool):
                 def display_ms(key):
                     return f'{record.timings.get(key, 0):.0f} ms'
@@ -454,6 +466,28 @@ class MainWindow(QMainWindow):
         self.worker = None
         self._ocr_target = None
         self.editor.setReadOnly(False)
+        self.update_actions()
+
+    def _previous_text(self, record):
+        for item in reversed(self.records):
+            if item is not record and item.edited_text.strip():
+                return item.edited_text
+        return ''
+
+    def delete_record(self, index):
+        if not 0 <= index < len(self.records):
+            return
+        del self.records[index]
+        if not self.records:
+            self.current_index = -1
+            self.current_image = None
+            self.document, self.page = None, 0
+            self.image_panel.clear_image()
+            self.document_name.setText('')
+            self._update_page()
+            self._show_record_text()
+        else:
+            self.show_record(min(index, len(self.records) - 1))
         self.update_actions()
 
     def copy_text(self):
@@ -561,7 +595,8 @@ class MainWindow(QMainWindow):
             for number, item in enumerate(self.records, 1):
                 created = time.strftime('%H:%M:%S', time.localtime(item.created))
                 text = item.edited_text.strip().splitlines()[0][:52] if item.edited_text.strip() else '—'
-                entries.addItem(f'{number}. {item.source} · {created} · {text}')
+                marker = ' ⚠' if item.overlap_words else ''
+                entries.addItem(f'{number}. {item.source} · {created} · {text}{marker}')
             entries.setCurrentRow(self.current_index if select is None else select)
         populate()
 
@@ -591,6 +626,12 @@ class MainWindow(QMainWindow):
                     self.current_index = index
                 populate(target)
         action('reopen', reopen)
+        def remove():
+            index = entries.currentRow()
+            if index >= 0:
+                self.delete_record(index)
+                populate()
+        action('delete', remove)
         action('copy_short', lambda: QApplication.clipboard().setText(selected().edited_text) if selected() else None)
         action('save_image', lambda: self._save_image_for(selected()))
         action('move_up', lambda: move(-1))

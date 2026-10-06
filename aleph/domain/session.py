@@ -20,6 +20,7 @@ class CaptureRecord:
     reading: RawReading | None = None
     edited_text: str = ''
     timings: dict = field(default_factory=dict)
+    overlap_words: int = 0
 
     @property
     def raw_text(self):
