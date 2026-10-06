@@ -189,7 +189,7 @@ def test_duplicate_suspicion_warns_but_never_deletes(window, monkeypatch):
     window.recognize()
     wait_ocr(window)
     assert window.current_record.overlap_words == 0
-    window._add_record(Image.new('RGB', (40, 30), 'white'), 'second.png')
+    window._add_record(Image.new('RGB', (41, 31), 'white'), 'second.png')
     window.recognize()
     wait_ocr(window)
     assert len(window.records) == 2
@@ -211,3 +211,26 @@ def test_delete_record_keeps_neighbours_and_clears_last(window):
     window.delete_record(0)
     assert window.records == [] and window.current_record is None
     assert window.editor.toPlainText() == ''
+
+
+def test_lines_joined_by_default_but_raw_kept(window, monkeypatch):
+    def engine(image, lang, psm, cancel, label, preserve_text=False, dpi=360):
+        return Candidate('שורה ראשונה\nשורה שנייה\n\nפסקה חדשה', 90, [], label, 5)
+    monkeypatch.setattr(core, 'run_tesseract', engine)
+    window._add_record(Image.new('RGB', (42, 32), 'white'), 'lines.png')
+    window.recognize()
+    wait_ocr(window)
+    assert window.current_record.raw_text == 'שורה ראשונה\nשורה שנייה\n\nפסקה חדשה'
+    assert window.current_record.edited_text == 'שורה ראשונה שורה שנייה\n\nפסקה חדשה'
+    assert window.editor.toPlainText() == 'שורה ראשונה שורה שנייה\n\nפסקה חדשה'
+
+
+def test_join_lines_can_be_disabled(window, monkeypatch):
+    def engine(image, lang, psm, cancel, label, preserve_text=False, dpi=360):
+        return Candidate('שורה ראשונה\nשורה שנייה', 90, [], label, 4)
+    monkeypatch.setattr(core, 'run_tesseract', engine)
+    window.settings.setValue('v04_join_lines', False)
+    window._add_record(Image.new('RGB', (43, 33), 'white'), 'lines.png')
+    window.recognize()
+    wait_ocr(window)
+    assert window.current_record.edited_text == 'שורה ראשונה\nשורה שנייה'

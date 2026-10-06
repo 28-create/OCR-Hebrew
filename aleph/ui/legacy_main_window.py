@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushB
     QLineEdit, QSpinBox, QFileDialog, QMessageBox, QInputDialog, QCheckBox)
 from PIL import Image
 from quick import QuickWindow, qimage_to_pil
-from core import Document, Candidate, Options, parse_pages, save_text, clean_text, ASSETS
+from core import Document, Candidate, Options, parse_pages, save_text, ASSETS
 from widgets import PageView
 from .i18n import tr
 
@@ -118,7 +118,6 @@ class MainWindow(QuickWindow):
         variants.addWidget(self.blocks, 1)
         advanced.addLayout(variants)
         exports = QHBoxLayout()
-        self.action('join', self.join_lines, exports)
         self.action('native', self.extract_native, exports)
         self.action('export', lambda: self.export_text(False), exports)
         self.action('export_all', lambda: self.export_text(True), exports)
@@ -380,11 +379,6 @@ class MainWindow(QuickWindow):
         size = self.settings.value('font_size', 18, type=int)
         self.editor.setFont(QFont(family, size))
         self.editor.setStyleSheet(f'font-family: "{family.replace(chr(34), "")}"; font-size: {size}pt;')
-
-    def join_lines(self):
-        self.internal_text = clean_text(self.internal_text, join_lines=True)
-        self.apply_nikud()
-        self.save_history_text()
 
     def extract_native(self):
         if self.worker or not self.document or not self.document.is_pdf:

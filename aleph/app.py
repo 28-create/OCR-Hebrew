@@ -311,7 +311,7 @@ class AlephWindow(QMainWindow):
         self.highlight_check.setChecked(False)
         self.highlight_check.toggled.connect(self.highlight_uncertain)
         result_layout.addWidget(self.highlight_check)
-        result_layout.addLayout(row(button('Joindre les lignes', lambda: self.transform_text(join=True)), button('Retirer le niqqud', lambda: self.transform_text(vowels=False))))
+        result_layout.addWidget(button('Retirer le niqqud', lambda: self.transform_text(vowels=False)))
         self.copy_button = button('Copier le texte', self.copy_text, 'primary')
         self.export_button = button('Exporter…', self.export_menu)
         result_layout.addLayout(row(self.copy_button, self.export_button))
@@ -500,6 +500,9 @@ class AlephWindow(QMainWindow):
 
     def add_result(self, result):
         # Preserve per-variant corrections when navigating the session history.
+        # Lines arrive joined (paragraphs kept) so the join button is unnecessary.
+        for candidate in result.candidates:
+            candidate.text = clean_text(candidate.text, join_lines=True)
         self.results.append(result)
         self.history.addItem(f'{result.label} — {result.source}')
         self.history.setCurrentIndex(len(self.results) - 1)
@@ -655,7 +658,7 @@ class AlephWindow(QMainWindow):
 <h3>Choisir la bonne lecture</h3><p><b>Hébreu classique</b> pour les caractères carrés. <b>Rachi</b> utilise un modèle spécialisé dans les caractères imprimés Rachi. <b>Automatique</b> et <b>Page mixte</b> combinent les deux modèles. L’écriture manuscrite et les styles non entraînés ne sont pas pris en charge de façon fiable.</p>
 <p>Pour une page ou une colonne, la mise en page automatique cherche les colonnes et paragraphes puis les lit séparément de droite à gauche. Vérifiez toujours l’ordre sur les mises en page complexes.</p>
 <h3>Précision et relecture</h3><p>La précision renforcée compare deux traitements. Le menu au-dessus du texte permet de consulter les deux lectures. Les corrections sont conservées séparément. Le surlignage indique les mots dont l’indice moteur est inférieur à 75 ; un mot non surligné peut aussi être erroné. Cet indice n’est pas un pourcentage d’exactitude.</p>
-<p>Le niqqud reconnu est conservé. Sa reconnaissance n’est pas garantie. Le bouton <b>Retirer le niqqud</b> enlève aussi les signes de cantillation. <b>Joindre les lignes</b> conserve les séparations de paragraphes. Ctrl+Z annule une modification.</p>
+<p>Le niqqud reconnu est conservé. Sa reconnaissance n’est pas garantie. Le bouton <b>Retirer le niqqud</b> enlève aussi les signes de cantillation. Les lignes sont collées automatiquement, paragraphes conservés. Ctrl+Z annule une modification.</p>
 <h3>Copier, exporter et traiter des pages</h3><p>Copiez tout le texte ou seulement les mots sélectionnés dans l’éditeur. L’export Word conserve le sens droite à gauche. Les résultats restent disponibles dans l’historique tant que l’application est ouverte. Exportez-les avant de fermer.</p>
 <p>Le traitement par lot lit des pages entières : indiquez par exemple <b>1-3, 5</b>. L’annulation conserve les résultats déjà terminés. La rotation est réglable par page.</p>
 <h3>Raccourcis</h3><p>Ctrl+O : ouvrir · Ctrl+Entrée : reconnaître · Ctrl+Maj+V : coller une image · Ctrl+Maj+C : copier · Échap : retirer le cadre · Ctrl+molette : zoomer.</p>

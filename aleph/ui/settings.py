@@ -81,6 +81,7 @@ class SettingsDialog(QDialog):
               [(self.t('torah'), 'torah'), (self.t('general'), 'general')], 'torah', 'profile_help')
         check(ocr, 'v04_eng', 'latin_eng', False, 'latin_help')
         check(ocr, 'v04_fra', 'latin_fra', False, 'latin_help')
+        check(ocr, 'v04_join_lines', 'join_lines', True, 'join_lines_help')
         combo(ocr, 'v04_nikud', 'nikud', [(self.t('nikud_keep'), 'keep'),
               (self.t('nikud_hide'), 'hide'), (self.t('nikud_remove'), 'remove')], 'keep', 'nikud_help')
         note = QLabel(self.t('raw_help'))

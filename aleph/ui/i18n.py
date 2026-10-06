@@ -149,6 +149,8 @@ TEXT.update({
  'latin_help': ('מוסיף את המודל הלטיני בקריאה אחת. ללא מילון וללא אינטרנט.', 'Ajoute le modèle latin en une seule passe (heb+eng). Sans dictionnaire, sans Internet.', 'Adds the Latin model in one pass (heb+eng). No dictionary, no network.'),
  'profile': ('פרופיל', 'Profil', 'Profile'),
  'profile_help': ('תורני מחיל גרשיים וסדר שורות. כללי מתקן רק סדר לטינית ועברית. הגולמי נשמר תמיד.', 'Torah applique gershayim et ordre des lignes. Le brut reste intact.', 'Torah applies gershayim and line order. Raw stays intact.'),
+ 'join_lines': ('חבר שורות', 'Coller les lignes', 'Join lines'),
+ 'join_lines_help': ('מחבר שורות לטקסט רציף. פסקאות נשמרות. הגולמי נשמר תמיד.', 'Colle les lignes du texte reconnu, paragraphes conserves. Le brut reste intact.', 'Joins recognized text lines, paragraphs kept. Raw stays intact.'),
 })
 
 

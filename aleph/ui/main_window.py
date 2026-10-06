@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabe
     QPushButton, QVBoxLayout, QHBoxLayout, QSplitter, QTextEdit, QFileDialog,
     QInputDialog, QLineEdit, QMenu, QMessageBox, QDialog, QListWidget)
 
-from core import ASSETS, Document, Options, hebrew_typography, probable_overlap, repair_mixed_rtl, save_text, without_nikud
+from core import ASSETS, Document, Options, clean_text, hebrew_typography, probable_overlap, repair_mixed_rtl, save_text, without_nikud
 from domain.session import CaptureRecord, RawReading
 from domain.text import edit_hidden
 from ocr.faithful import FaithfulWorker
@@ -258,6 +258,9 @@ class MainWindow(QMainWindow):
         value = self.settings.value('v04_profile', 'torah')
         return value if value in ('torah', 'general') else 'torah'
 
+    def join_lines_enabled(self):
+        return self.settings.value('v04_join_lines', True, type=bool)
+
     def _show_record_text(self):
         record = self.current_record
         text = record.edited_text if record else ''
@@ -435,6 +438,8 @@ class MainWindow(QMainWindow):
                 edited = repair_mixed_rtl(hebrew_typography(edited))
             elif set(self.v04_languages()) & {'eng', 'fra'}:
                 edited = repair_mixed_rtl(edited)
+            if self.join_lines_enabled():
+                edited = clean_text(edited, join_lines=True)
             record.edited_text = edited
             record.timings.update(diagnostics)
             self._show_record_text()

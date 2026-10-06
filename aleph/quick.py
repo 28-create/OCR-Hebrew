@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QLabel, QPush
     QHBoxLayout, QSplitter, QComboBox, QProgressBar, QMessageBox, QDialog, QCheckBox, QDialogButtonBox,
     QFormLayout, QKeySequenceEdit, QGroupBox)
 
-from core import Options, Candidate, recognize, probable_overlap, without_nikud
+from core import Options, Candidate, clean_text, recognize, probable_overlap, without_nikud
 from widgets import app_icon, pil_pixmap
 from version import VERSION
 
@@ -571,6 +571,9 @@ class QuickWindow(QMainWindow):
 
     def show_final(self, candidates):
         self.candidates = candidates
+        # Join once at arrival so variant switches and history stay consistent.
+        for candidate in candidates:
+            candidate.text = clean_text(candidate.text, join_lines=True)
         candidate = candidates[0]
         if not self.user_edited_draft:
             self._set_result(candidate, final=True)
@@ -591,6 +594,9 @@ class QuickWindow(QMainWindow):
     def _set_result(self, candidate: Candidate, final):
         self.current_candidate = candidate
         text = candidate.text
+        if final:
+            # Joined lines by default; paragraph breaks are preserved.
+            text = clean_text(text, join_lines=True)
         self.duplicate_chars = 0
         if self.pending_mode == 'append' and self.base_text:
             count, characters = probable_overlap(self.base_text, text)
