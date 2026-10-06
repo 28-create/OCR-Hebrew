@@ -93,6 +93,9 @@ class MainWindow(QMainWindow):
         self.export_button.setToolTip(self.t('text_title'))
         self.history_button = self._button('history', self.show_history, top)
         self.settings_button = self._button('settings', self.show_settings, top)
+        # Visual hierarchy: capture actions stay strong, utilities stay subtle.
+        for action in (self.open_button, self.export_button, self.history_button, self.settings_button):
+            action.setObjectName('subtle')
         outer.addLayout(top)
 
         self.splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -146,8 +149,6 @@ class MainWindow(QMainWindow):
         self.image_hint.setObjectName('muted')
         self.image_hint.setWordWrap(True)
         image_actions.addWidget(self.image_hint, 1)
-        self.save_image_button = self._button('save_image', self.save_image, image_actions)
-        self.add_button = self._button('add', self.capture_action, image_actions)
         left.addLayout(image_actions)
         self.splitter.addWidget(source)
 
@@ -162,6 +163,7 @@ class MainWindow(QMainWindow):
         text_heading.addWidget(self.text_title)
         text_heading.addStretch()
         self.raw_button = self._button('raw_view', self.view_raw, text_heading)
+        self.raw_button.setObjectName('subtle')
         right.addLayout(text_heading)
         self.editor = QTextEdit()
         self.editor.setObjectName('hebrewEditor')
@@ -287,12 +289,13 @@ class MainWindow(QMainWindow):
         active = bool(self.current_record and self.current_record.image)
         text = bool(self.current_record and self.current_record.edited_text)
         idle = self.capture.state == 'idle' if hasattr(self, 'capture') else True
-        for button in (self.open_button, self.capture_button, self.window_button, self.add_button, self.history_button, self.settings_button):
+        for button in (self.open_button, self.capture_button, self.window_button, self.history_button, self.settings_button):
             button.setEnabled(not busy and idle)
         self.recognize_button.setEnabled(active and not busy and idle)
-        for button in (self.copy_button, self.copy_text_button, self.export_button, self.export_text_button):
+        for button in (self.copy_button, self.copy_text_button):
             button.setEnabled(text and not busy)
-        self.save_image_button.setEnabled(active and not busy)
+        for button in (self.export_button, self.export_text_button):
+            button.setEnabled((text or active) and not busy)
         self.raw_button.setEnabled(bool(self.current_record and self.current_record.reading))
         self.previous_button.setEnabled(bool(self.document and self.page > 0 and not busy))
         self.next_button.setEnabled(bool(self.document and self.page < self.document.pages - 1 and not busy))
@@ -502,11 +505,15 @@ class MainWindow(QMainWindow):
             self.status.setText(self.t('copied'))
 
     def show_export_menu(self):
-        if not self.current_record or not self.current_record.edited_text:
+        record = self.current_record
+        if not record or (not record.edited_text and record.image is None):
             return
         menu = QMenu(self)
-        menu.addAction('Word (.docx)', lambda: self.export_text('.docx'))
-        menu.addAction(self.t('export_txt'), lambda: self.export_text('.txt'))
+        if record.edited_text:
+            menu.addAction('Word (.docx)', lambda: self.export_text('.docx'))
+            menu.addAction(self.t('export_txt'), lambda: self.export_text('.txt'))
+        if record.image is not None:
+            menu.addAction(self.t('save_image'), self.save_image)
         menu.exec(self.sender().mapToGlobal(self.sender().rect().bottomLeft()))
 
     def export_text(self, extension='.docx'):
