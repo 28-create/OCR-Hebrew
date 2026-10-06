@@ -1,9 +1,16 @@
 """Non-modal ready state; desktop selection starts only on explicit activation."""
+import ctypes
+import sys
 import time
-from PySide6.QtCore import QObject, Qt, Signal, QTimer
+from PySide6.QtCore import QObject, Qt, QRect, Signal, QTimer
 from PySide6.QtGui import QCursor, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QWidget, QHBoxLayout, QLabel, QPushButton
-from quick import CaptureOverlay
+from quick import CaptureOverlay, qimage_to_pil
+
+try:
+    from ctypes import wintypes
+except ImportError:  # non-Windows: foreground handle stays 0 (whole screen)
+    wintypes = None
 
 
 class ReadyBar(QWidget):
@@ -80,6 +87,41 @@ class CaptureController(QObject):
         self.set_state('selecting')
         # Let the floating button disappear before taking the desktop snapshot.
         self._timer.start(180)
+
+    def capture_window(self):
+        """Grab the foreground window directly, without a selection rectangle."""
+        if self.owner.worker or self.state != 'idle':
+            return
+        self._maximized = self.owner.isMaximized()
+        self.set_state('ready')
+        self.owner.showMinimized()
+        # Let the main window disappear so the foreground window is the target.
+        QTimer.singleShot(180, self._foreground_window)
+
+    def _foreground_window(self):
+        if self.state != 'ready':
+            return
+        started = time.perf_counter()
+        hwnd = 0
+        if sys.platform == 'win32' and wintypes is not None:
+            try:
+                function = ctypes.windll.user32.GetForegroundWindow
+                function.restype = wintypes.HWND
+                hwnd = function() or 0
+            except (AttributeError, OSError):
+                hwnd = 0
+        screen = QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()
+        pixmap = screen.grabWindow(hwnd)
+        self.capture_ms = (time.perf_counter() - started) * 1000
+        if pixmap.isNull():
+            self.cancel()
+            self.owner.show_error(self.owner.t('capture_failed'))
+            return
+        rect = QRect(QCursor.pos(), pixmap.deviceIndependentSize().toSize())
+        image = qimage_to_pil(pixmap.toImage())
+        self.cleanup()
+        self.restore_owner()
+        self.captured.emit(image, rect)
 
     def _show_overlays(self):
         if self.state != 'selecting':

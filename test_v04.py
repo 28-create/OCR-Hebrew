@@ -171,3 +171,11 @@ def test_settings_are_grouped_and_main_bar_is_simple(window):
     assert not hasattr(window, 'resolution_combo')
     assert window.zoom_out.width() == 32 and window.zoom_in.width() == 32
     dialog.close()
+
+
+def test_capture_window_reports_grab_failure_without_crashing(window):
+    window.capture.capture_window()
+    assert window.capture.state == 'ready'
+    window.capture._foreground_window()
+    assert window.capture.state == 'idle'
+    assert window.status.text() == f'{window.t("error")} · {window.t("capture_failed")}'

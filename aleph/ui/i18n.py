@@ -144,6 +144,11 @@ TEXT.update({
  'cached': ('תוצאה מהמטמון', 'Résultat réutilisé', 'Cached result'),
  'font_help': ('משפיע על העורך ועל ייצוא Word, לא על זיהוי האותיות.', 'S’applique à l’éditeur et à Word, sans effet sur la reconnaissance.', 'Applies to the editor and Word export, without changing recognition.'),
  'export_txt': ('טקסט UTF-8 (.txt)', 'Texte UTF-8 (.txt)', 'UTF-8 text (.txt)'),
+  'latin_eng': ('אנגלית (לטינית)', 'Anglais (latin)', 'English (Latin)'),
+  'latin_fra': ('צרפתית (לטינית)', 'Français (latin)', 'French (Latin)'),
+ 'latin_help': ('מוסיף את המודל הלטיני בקריאה אחת. ללא מילון וללא אינטרנט.', 'Ajoute le modèle latin en une seule passe (heb+eng). Sans dictionnaire, sans Internet.', 'Adds the Latin model in one pass (heb+eng). No dictionary, no network.'),
+ 'profile': ('פרופיל', 'Profil', 'Profile'),
+ 'profile_help': ('תורני מחיל גרשיים וסדר שורות. כללי מתקן רק סדר לטינית ועברית. הגולמי נשמר תמיד.', 'Torah applique gershayim et ordre des lignes. Le brut reste intact.', 'Torah applies gershayim and line order. Raw stays intact.'),
 })
 
 

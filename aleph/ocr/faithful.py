@@ -15,8 +15,18 @@ CACHE_LIMIT = 12
 
 
 def model_for(options):
-    # Legacy automatic preferences cannot enable multi-model OCR in stable mode.
-    return 'heb_rashi' if options.script == 'rashi' else 'heb'
+    """Single Tesseract pass: Hebrew base from script plus optional Latin.
+
+    The Latin checkboxes only append ``eng``/``fra`` to the ``-l`` string
+    (``heb+eng``). No dictionary or word replacement is involved.
+    """
+    script = getattr(options, 'script', 'square')
+    base = 'heb_rashi' if script == 'rashi' else 'heb'
+    langs = set(getattr(options, 'languages', ()) or ())
+    if langs and not langs <= {'heb', 'heb_rashi', 'eng', 'fra'}:
+        raise ValueError('Select at least one supported OCR language.')
+    latin = [code for code in ('eng', 'fra') if code in langs]
+    return '+'.join([base] + latin)
 
 
 def cache_key(image, options):
@@ -27,7 +37,10 @@ def cache_key(image, options):
 
 
 def recognize_faithful(image, options, cancel, *, use_cache=True, diagnostics=None):
-    from core import Cancelled, preprocess, run_tesseract
+    try:
+        from core import Cancelled, preprocess, run_tesseract
+    except ImportError:  # package layout (python -m aleph.app from the parent dir)
+        from aleph.core import Cancelled, preprocess, run_tesseract
     if cancel.is_set():
         raise Cancelled()
     key = cache_key(image, options)
@@ -68,7 +81,10 @@ class FaithfulWorker(QThread):
         self.cancel = threading.Event()
 
     def run(self):
-        from core import Cancelled
+        try:
+            from core import Cancelled
+        except ImportError:  # package layout (python -m aleph.app from the parent dir)
+            from aleph.core import Cancelled
         started = time.perf_counter()
         diagnostics = {}
         try:

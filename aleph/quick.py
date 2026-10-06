@@ -464,7 +464,9 @@ class QuickWindow(QMainWindow):
         show_image.setChecked(self.settings.value('show_image', True, type=bool))
         keep_history = QCheckBox('שמור היסטוריה זמנית במשך ההפעלה')
         keep_history.setChecked(self.settings.value('session_history', True, type=bool))
-        for widget in [auto_copy, close_copy, show_image, keep_history]:
+        highlight_uncertain = QCheckBox('הדגש מילים לא ודאיות')
+        highlight_uncertain.setChecked(self.settings.value('highlight_uncertain', False, type=bool))
+        for widget in [auto_copy, close_copy, show_image, keep_history, highlight_uncertain]:
             options.addRow(widget)
         layout.addWidget(options_group)
         languages_group = QGroupBox('OCR · עברית / Français / English')
@@ -505,12 +507,14 @@ class QuickWindow(QMainWindow):
             self.settings.setValue('close_after_copy', close_copy.isChecked())
             self.settings.setValue('show_image', show_image.isChecked())
             self.settings.setValue('session_history', keep_history.isChecked())
+            self.settings.setValue('highlight_uncertain', highlight_uncertain.isChecked())
             for key, editor in editors.items():
                 sequence = editor.keySequence().toString(QKeySequence.SequenceFormat.PortableText)
                 if sequence:
                     self.settings.setValue(key, sequence)
             self.install_hotkeys()
             self.image_panel.setVisible(show_image.isChecked() and self.display.currentIndex() != 1)
+            self.highlight_issues()
 
     def new_capture(self):
         if self.worker:
@@ -689,7 +693,7 @@ class QuickWindow(QMainWindow):
             selection.cursor = cursor
             selection.format.setBackground(QColor('#ffd7cf'))
             selections.append(selection)
-        if self.current_candidate:
+        if self.current_candidate and self.settings.value('highlight_uncertain', False, type=bool):
             for word in self.current_candidate.uncertain:
                 cursor = QTextCursor(self.editor.document())
                 while True:

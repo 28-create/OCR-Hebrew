@@ -76,7 +76,10 @@ def repair_mixed_rtl(text: str) -> str:
 
 def probable_overlap(previous: str, following: str, minimum: int = 3) -> tuple[int, int]:
     """Return overlapping word count and source character count; never mutates text."""
-    from domain.text import overlap
+    try:
+        from domain.text import overlap
+    except ImportError:  # package layout (python -m aleph.app from the parent dir)
+        from aleph.domain.text import overlap
     return overlap(previous, following, minimum)
 
 
@@ -307,11 +310,17 @@ def run_tesseract(image: Image.Image, lang: str, psm: int, cancel: threading.Eve
 def recognize(image: Image.Image, options: Options, cancel: threading.Event, progress=lambda value: None,
               raw=None, draft_callback=None) -> list[Candidate]:
     if options.pipeline == 'faithful':
-        from ocr.faithful import recognize_faithful
+        try:
+            from ocr.faithful import recognize_faithful
+        except ImportError:  # package layout (python -m aleph.app from the parent dir)
+            from aleph.ocr.faithful import recognize_faithful
         return [recognize_faithful(image, options, cancel)]
     if options.pipeline != 'experimental':
         raise ValueError('Unknown OCR pipeline')
-    from ocr.engine import recognize_blocks
+    try:
+        from ocr.engine import recognize_blocks
+    except ImportError:  # package layout (python -m aleph.app from the parent dir)
+        from aleph.ocr.engine import recognize_blocks
     return recognize_blocks(image, options, cancel, progress, raw, draft_callback)
 
 

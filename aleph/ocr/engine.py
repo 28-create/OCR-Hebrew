@@ -45,7 +45,10 @@ def restore_boxes(candidate, original_size, prepared_size, angle, region, page_s
 
 
 def combined(blocks, label):
-    from core import Candidate
+    try:
+        from core import Candidate
+    except ImportError:  # package layout (python -m aleph.app from the parent dir)
+        from aleph.core import Candidate
     included = [b for b in blocks if b.included]
     words = sum(b.candidates[b.selected].words for b in included)
     result = Candidate('\n\n'.join(b.candidates[b.selected].text for b in included if b.candidates[b.selected].text),
@@ -58,7 +61,10 @@ def combined(blocks, label):
 
 def word_decisions(block, selected):
     """Expose candidate agreement per word without rewriting recognized text."""
-    from core import WordDecision
+    try:
+        from core import WordDecision
+    except ImportError:  # package layout (python -m aleph.app from the parent dir)
+        from aleph.core import WordDecision
     chosen = block.candidates[selected]
     words = chosen.text.split()
     alternatives = [Counter({word: 1}) for word in words]
@@ -98,7 +104,10 @@ def score(candidate, peers, script='auto'):
 
 
 def recognize_blocks(image, options, cancel, progress, raw=None, draft_callback=None):
-    from core import Candidate, BlockResult, Cancelled, preprocess, run_tesseract, hebrew_typography, repair_mixed_rtl
+    try:
+        from core import Candidate, BlockResult, Cancelled, preprocess, run_tesseract, hebrew_typography, repair_mixed_rtl
+    except ImportError:  # package layout (python -m aleph.app from the parent dir)
+        from aleph.core import Candidate, BlockResult, Cancelled, preprocess, run_tesseract, hebrew_typography, repair_mixed_rtl
     choices = models(options)
     if cancel.is_set():
         raise Cancelled()

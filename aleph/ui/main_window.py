@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QFrame, QLabe
     QPushButton, QVBoxLayout, QHBoxLayout, QSplitter, QTextEdit, QFileDialog,
     QInputDialog, QLineEdit, QMenu, QMessageBox, QDialog, QListWidget)
 
-from core import ASSETS, Document, Options, save_text, without_nikud
+from core import ASSETS, Document, Options, hebrew_typography, repair_mixed_rtl, save_text, without_nikud
 from domain.session import CaptureRecord, RawReading
 from domain.text import edit_hidden
 from ocr.faithful import FaithfulWorker
@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         top.addStretch()
         self.open_button = self._button('open_short', self.open_dialog, top)
         self.capture_button = self._button('capture', self.capture_action, top, primary=True)
+        self.window_button = self._button('window', self.capture_window_action, top)
         self.recognize_button = self._button('read', self.recognize, top)
         self.copy_button = self._button('copy_short', self.copy_text, top)
         self.export_button = self._button('export', self.show_export_menu, top)
@@ -243,6 +244,20 @@ class MainWindow(QMainWindow):
     def nikud_mode(self):
         return self.settings.value('v04_nikud', 'keep')
 
+    def v04_languages(self):
+        script = self.settings.value('v04_script', 'square')
+        base = 'heb_rashi' if script == 'rashi' else 'heb'
+        latin = []
+        if self.settings.value('v04_eng', False, type=bool):
+            latin.append('eng')
+        if self.settings.value('v04_fra', False, type=bool):
+            latin.append('fra')
+        return tuple([base] + latin)
+
+    def v04_profile(self):
+        value = self.settings.value('v04_profile', 'torah')
+        return value if value in ('torah', 'general') else 'torah'
+
     def _show_record_text(self):
         record = self.current_record
         text = record.edited_text if record else ''
@@ -269,7 +284,7 @@ class MainWindow(QMainWindow):
         active = bool(self.current_record and self.current_record.image)
         text = bool(self.current_record and self.current_record.edited_text)
         idle = self.capture.state == 'idle' if hasattr(self, 'capture') else True
-        for button in (self.open_button, self.capture_button, self.add_button, self.history_button, self.settings_button):
+        for button in (self.open_button, self.capture_button, self.window_button, self.add_button, self.history_button, self.settings_button):
             button.setEnabled(not busy and idle)
         self.recognize_button.setEnabled(active and not busy and idle)
         for button in (self.copy_button, self.copy_text_button, self.export_button, self.export_text_button):
@@ -294,6 +309,9 @@ class MainWindow(QMainWindow):
 
     def capture_action(self):
         self.capture.arm()
+
+    def capture_window_action(self):
+        self.capture.capture_window()
 
     def receive_capture(self, image, rect):
         self.document = None
@@ -390,6 +408,7 @@ class MainWindow(QMainWindow):
             record = self._add_record(record.image, record.source, record.page, record.document)
         options = Options(script=self.settings.value('v04_script', 'square'), layout='block',
                           dpi=self.resolution(), enhanced=False, deskew=False, typography='none',
+                          languages=self.v04_languages(), profile=self.v04_profile(),
                           ignore_running_headers=False, ignore_pagination=False, pipeline='faithful')
         self._ocr_target = record
         self.worker = FaithfulWorker(record.image, options)
@@ -406,8 +425,17 @@ class MainWindow(QMainWindow):
         record = self._ocr_target
         if record is not None:
             record.reading = RawReading(candidate.text, candidate.model, candidate.confidence)
-            record.edited_text = (without_nikud(candidate.text) if self.nikud_mode() == 'remove'
-                                  else candidate.text)
+            edited = (without_nikud(candidate.text) if self.nikud_mode() == 'remove'
+                      else candidate.text)
+            # The raw engine text above stays untouched. The profile only shapes
+            # the editable copy: torah applies conservative gershayim marks and
+            # mixed RTL order repair, general repairs Latin/Hebrew order only
+            # when a Latin model was enabled. No dictionary, no word replacement.
+            if self.v04_profile() == 'torah':
+                edited = repair_mixed_rtl(hebrew_typography(edited))
+            elif set(self.v04_languages()) & {'eng', 'fra'}:
+                edited = repair_mixed_rtl(edited)
+            record.edited_text = edited
             record.timings.update(diagnostics)
             self._show_record_text()
             record.timings['display_ms'] = round((time.perf_counter() - started) * 1000, 1)
@@ -491,6 +519,9 @@ class MainWindow(QMainWindow):
         label = QLabel(self.t('raw_help'))
         label.setWordWrap(True)
         layout.addWidget(label)
+        info = QLabel(f"{record.reading.model} · {record.reading.confidence:.0f}/100")
+        info.setObjectName('muted')
+        layout.addWidget(info)
         raw = QTextEdit(record.raw_text)
         raw.setReadOnly(True)
         raw.setLayoutDirection(Qt.LayoutDirection.RightToLeft)
