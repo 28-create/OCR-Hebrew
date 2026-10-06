@@ -149,6 +149,7 @@ class MainWindow(QMainWindow):
         self.image_hint.setObjectName('muted')
         self.image_hint.setWordWrap(True)
         image_actions.addWidget(self.image_hint, 1)
+        self.save_image_button = self._button('save_image', self.save_image, image_actions)
         left.addLayout(image_actions)
         self.splitter.addWidget(source)
 
@@ -296,6 +297,7 @@ class MainWindow(QMainWindow):
             button.setEnabled(text and not busy)
         for button in (self.export_button, self.export_text_button):
             button.setEnabled((text or active) and not busy)
+        self.save_image_button.setEnabled(active and not busy)
         self.raw_button.setEnabled(bool(self.current_record and self.current_record.reading))
         self.previous_button.setEnabled(bool(self.document and self.page > 0 and not busy))
         self.next_button.setEnabled(bool(self.document and self.page < self.document.pages - 1 and not busy))
