@@ -14,19 +14,44 @@ _lock = threading.Lock()
 CACHE_LIMIT = 12
 
 
-def model_for(options):
+def resolved_script(options, image=None):
+    """Explicit choice wins; 'auto' falls back to square Hebrew on any doubt."""
+    if options.script == 'rashi':
+        return 'rashi'
+    if options.script == 'square':
+        return 'square'
+    if image is not None:
+        try:
+            try:
+                from .script_classifier import classify_script
+            except ImportError:  # package layout
+                from aleph.ocr.script_classifier import classify_script
+            label = classify_script(image.convert('RGB')).label
+        except Exception:
+            return 'square'
+        if label == 'rashi':
+            return 'rashi'
+        if label == 'mixed':
+            return 'mixed'
+    return 'square'
+
+
+def model_string(script, options):
+    bases = {'rashi': ['heb_rashi'], 'mixed': ['heb', 'heb_rashi']}.get(script, ['heb'])
+    langs = set(getattr(options, 'languages', ()) or ())
+    if langs and not langs <= {'heb', 'heb_rashi', 'eng', 'fra'}:
+        raise ValueError('Select at least one supported OCR language.')
+    latin = [code for code in ('eng', 'fra') if code in langs]
+    return '+'.join(bases + latin)
+
+
+def model_for(options, image=None):
     """Single Tesseract pass: Hebrew base from script plus optional Latin.
 
     The Latin checkboxes only append ``eng``/``fra`` to the ``-l`` string
     (``heb+eng``). No dictionary or word replacement is involved.
     """
-    script = getattr(options, 'script', 'square')
-    base = 'heb_rashi' if script == 'rashi' else 'heb'
-    langs = set(getattr(options, 'languages', ()) or ())
-    if langs and not langs <= {'heb', 'heb_rashi', 'eng', 'fra'}:
-        raise ValueError('Select at least one supported OCR language.')
-    latin = [code for code in ('eng', 'fra') if code in langs]
-    return '+'.join([base] + latin)
+    return model_string(resolved_script(options, image), options)
 
 
 def cache_key(image, options):
@@ -54,9 +79,13 @@ def recognize_faithful(image, options, cancel, *, use_cache=True, diagnostics=No
     # Use the grayscale/contrast preparation of the old raw pass for parity.
     # The source image itself is kept untouched for preview and PNG export.
     prepared = preprocess(image, deskew=False)
-    result = run_tesseract(prepared, model_for(options), 6, cancel, 'OCR brut',
+    script = resolved_script(options, image)
+    model = model_string(script, options)
+    result = run_tesseract(prepared, model, 6, cancel, 'OCR brut',
                            preserve_text=True, dpi=options.dpi)
-    result.model = model_for(options)
+    result.model = model
+    if diagnostics is not None:
+        diagnostics['script'] = script
     if cancel.is_set():
         raise Cancelled()
     if use_cache:

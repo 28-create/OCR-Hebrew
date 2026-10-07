@@ -50,7 +50,10 @@ def _distance(left, right):
 
 @lru_cache(maxsize=1)
 def _references():
-    from core import ASSETS
+    try:
+        from core import ASSETS
+    except ImportError:  # package layout (python -m aleph.app from the parent dir)
+        from aleph.core import ASSETS
     with Image.open(ASSETS / 'demo-square.png') as square:
         square_features = visual_features(square.convert('RGB'))
     with Image.open(ASSETS / 'demo-rashi.png') as rashi:

@@ -87,14 +87,15 @@ class MainWindow(QMainWindow):
         self.open_button = self._button('open_short', self.open_dialog, top)
         self.capture_button = self._button('capture', self.capture_action, top, primary=True)
         self.window_button = self._button('window', self.capture_window_action, top)
-        self.recognize_button = self._button('read', self.recognize, top)
-        self.copy_button = self._button('copy_short', self.copy_text, top)
-        self.export_button = self._button('export', self.show_export_menu, top)
-        self.export_button.setToolTip(self.t('text_title'))
         self.history_button = self._button('history', self.show_history, top)
-        self.settings_button = self._button('settings', self.show_settings, top)
+        self.settings_button = QPushButton('⚙')
+        self.settings_button.setToolTip(self.t('settings'))
+        self.settings_button.setFixedSize(32, 32)
+        self.settings_button.setObjectName('subtle')
+        self.settings_button.clicked.connect(self.show_settings)
+        top.addWidget(self.settings_button)
         # Visual hierarchy: capture actions stay strong, utilities stay subtle.
-        for action in (self.open_button, self.export_button, self.history_button, self.settings_button):
+        for action in (self.open_button, self.history_button):
             action.setObjectName('subtle')
         outer.addLayout(top)
 
@@ -142,6 +143,7 @@ class MainWindow(QMainWindow):
         self.image_panel = PageView()
         self.image_panel.zoomChanged.connect(lambda value: self.zoom_label.setText(f'{value} %'))
         self.image_panel.selectionChanged.connect(self.update_actions)
+        self.image_panel.selectionChanged.connect(self._selection_auto_read)
         self.image_panel.setToolTip(self.t('selection_hint') + '\n' + self.t('zoom_help'))
         left.addWidget(self.image_panel, 1)
         image_actions = QHBoxLayout()
@@ -165,6 +167,8 @@ class MainWindow(QMainWindow):
         text_heading.addStretch()
         self.raw_button = self._button('raw_view', self.view_raw, text_heading)
         self.raw_button.setObjectName('subtle')
+        self.nikud_button = self._button('nikud', self.show_settings_ocr, text_heading)
+        self.nikud_button.setObjectName('subtle')
         right.addLayout(text_heading)
         self.editor = QTextEdit()
         self.editor.setObjectName('hebrewEditor')
@@ -219,6 +223,7 @@ class MainWindow(QMainWindow):
                 button.setToolTip(self.t(key))
             else:
                 button.setText(self.t(key))
+        self.settings_button.setToolTip(self.t('settings'))
         for button, symbol in ((self.previous_button, '‹'), (self.next_button, '›'),
                                (self.zoom_out, '−'), (self.zoom_in, '+')):
             button.setText(symbol)
@@ -248,14 +253,19 @@ class MainWindow(QMainWindow):
         return self.settings.value('v04_nikud', 'keep')
 
     def v04_languages(self):
-        script = self.settings.value('v04_script', 'square')
-        base = 'heb_rashi' if script == 'rashi' else 'heb'
+        script = self.settings.value('v04_script', 'auto')
+        if script == 'rashi':
+            base = ['heb_rashi']
+        elif script == 'square':
+            base = ['heb']
+        else:
+            base = ['heb', 'heb_rashi']
         latin = []
         if self.settings.value('v04_eng', False, type=bool):
             latin.append('eng')
         if self.settings.value('v04_fra', False, type=bool):
             latin.append('fra')
-        return tuple([base] + latin)
+        return tuple(base + latin)
 
     def v04_profile(self):
         value = self.settings.value('v04_profile', 'torah')
@@ -292,28 +302,20 @@ class MainWindow(QMainWindow):
         idle = self.capture.state == 'idle' if hasattr(self, 'capture') else True
         for button in (self.open_button, self.capture_button, self.window_button, self.history_button, self.settings_button):
             button.setEnabled(not busy and idle)
-        self.recognize_button.setEnabled(active and not busy and idle)
-        for button in (self.copy_button, self.copy_text_button):
-            button.setEnabled(text and not busy)
-        for button in (self.export_button, self.export_text_button):
-            button.setEnabled((text or active) and not busy)
+        self.copy_text_button.setEnabled(text and not busy)
+        self.export_text_button.setEnabled((text or active) and not busy)
         self.save_image_button.setEnabled(active and not busy)
         self.raw_button.setEnabled(bool(self.current_record and self.current_record.reading))
         self.previous_button.setEnabled(bool(self.document and self.page > 0 and not busy))
         self.next_button.setEnabled(bool(self.document and self.page < self.document.pages - 1 and not busy))
         for button in (self.zoom_out, self.zoom_in, self.fit_button):
             button.setEnabled(active)
-        if active and not text:
-            self.recognize_button.setObjectName('primary')
-        else:
-            self.recognize_button.setObjectName('')
         if text:
-            self.copy_button.setObjectName('primary')
+            self.copy_text_button.setObjectName('primary')
         else:
-            self.copy_button.setObjectName('')
-        for button in (self.recognize_button, self.copy_button):
-            button.style().unpolish(button)
-            button.style().polish(button)
+            self.copy_text_button.setObjectName('')
+        self.copy_text_button.style().unpolish(self.copy_text_button)
+        self.copy_text_button.style().polish(self.copy_text_button)
 
     def capture_action(self):
         self.capture.arm()
@@ -325,7 +327,14 @@ class MainWindow(QMainWindow):
         self.document = None
         self.page = 0
         self._add_record(image, self.t('selection'), timings={'capture_ms': round(self.capture.capture_ms, 1)})
-        if self.settings.value('v04_after_capture', 'preview') == 'recognize':
+        if self.settings.value('v04_after_capture', 'recognize') == 'recognize':
+            self.recognize()
+
+    def _selection_auto_read(self, selected):
+        # No read button: a released selection on a readable image reads itself.
+        if not selected or self.worker:
+            return
+        if self.current_record and self.current_record.image is not None:
             self.recognize()
 
     def _add_record(self, image, source, page=0, document=None, timings=None):
@@ -369,6 +378,8 @@ class MainWindow(QMainWindow):
             image = document.render(0, self.resolution())
             self.document, self.page = document, 0
             self._add_record(image, Path(path).name, 0, document)
+            if not document.is_pdf:
+                self.recognize()
         except Exception as error:
             self.show_error(str(error))
 
@@ -414,7 +425,7 @@ class MainWindow(QMainWindow):
             # A second OCR attempt is a new reading; the first raw result remains
             # available in its own history entry even if settings changed.
             record = self._add_record(record.image, record.source, record.page, record.document)
-        options = Options(script=self.settings.value('v04_script', 'square'), layout='block',
+        options = Options(script=self.settings.value('v04_script', 'auto'), layout='block',
                           dpi=self.resolution(), enhanced=False, deskew=False, typography='none',
                           languages=self.v04_languages(), profile=self.v04_profile(),
                           ignore_running_headers=False, ignore_pagination=False, pipeline='faithful')
@@ -674,6 +685,10 @@ class MainWindow(QMainWindow):
     def show_settings(self):
         from .settings import show_settings
         show_settings(self)
+
+    def show_settings_ocr(self):
+        from .settings import show_settings
+        show_settings(self, 1)
 
     def show_error(self, message):
         self.status.setText(f'{self.t("error")} · {message}')

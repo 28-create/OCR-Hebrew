@@ -166,7 +166,7 @@ def test_settings_are_grouped_and_main_bar_is_simple(window):
     dialog = SettingsDialog(window)
     tabs = dialog.findChild(QTabWidget)
     assert tabs.count() == 5
-    assert window.settings.value('v04_script', 'square') == 'square'
+    assert window.settings.value('v04_script', 'auto') == 'auto'
     assert not hasattr(window, 'display')
     assert not hasattr(window, 'resolution_combo')
     assert window.zoom_out.width() == 32 and window.zoom_in.width() == 32
@@ -234,3 +234,19 @@ def test_join_lines_can_be_disabled(window, monkeypatch):
     window.recognize()
     wait_ocr(window)
     assert window.current_record.edited_text == 'שורה ראשונה\nשורה שנייה'
+
+
+def test_automatic_script_picks_square_or_rashi():
+    from ocr.faithful import model_for
+    square = Image.open(ASSETS / 'demo-square.png').convert('RGB')
+    rashi = Image.open(ASSETS / 'demo-rashi.png').convert('RGB')
+    assert model_for(Options(script='auto'), square) == 'heb'
+    assert model_for(Options(script='auto'), rashi) == 'heb_rashi'
+    assert model_for(Options(script='rashi'), square) == 'heb_rashi'
+
+
+def test_capture_starts_reading_automatically(window):
+    window.receive_capture(Image.open(ASSETS / 'demo-square.png').convert('RGB'), QRect(30, 40, 200, 100))
+    assert window.worker is not None
+    wait_ocr(window)
+    assert 'ברוכים הבאים' in window.current_record.raw_text

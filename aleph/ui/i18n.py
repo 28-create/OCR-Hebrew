@@ -109,7 +109,7 @@ TEXT.update({
  'writing': ('סוג הכתב', 'Type d’écriture', 'Script'),
  'square': ('עברית מרובעת', 'Hébreu carré', 'Square Hebrew'),
  'rashi': ('כתב רש״י', 'Rachi', 'Rashi'),
- 'writing_help': ('בחרו את הכתב של הקטע. מופעל מודל אחד בלבד לכל אזור. אין החלפת מילים אוטומטית.', 'Choisissez l’écriture du passage. Un seul modèle lit chaque zone. Aucun remplacement automatique de mots.', 'Choose the script in the passage. One model reads each area. No automatic word replacement.'),
+ 'writing_help': ('אוטומטי מזהה את הכתב לכל אזור. מופעל מודל אחד בלבד לכל אזור. אין החלפת מילים אוטומטית.', 'Automatique détecte l’écriture de chaque zone. Un seul modèle lit chaque zone. Aucun remplacement automatique de mots.', 'Automatic detects the script of each area. One model reads each area. No automatic word replacement.'),
  'nikud': ('ניקוד', 'Niqqud', 'Niqqud'),
  'nikud_help': ('הסתרה שומרת את הניקוד בזיכרון ובהעתקה. הסרה משנה רק את העותק הניתן לעריכה. הפלט המקורי נשמר תמיד.', 'Masquer conserve les points en mémoire et lors de la copie. Supprimer modifie seulement le texte édité. Le brut reste intact.', 'Hide preserves marks in memory and when copying. Remove changes only the edited text. Raw OCR stays intact.'),
  'after_capture': ('לאחר הלכידה', 'Après la capture', 'After capture'),

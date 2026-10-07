@@ -17,6 +17,7 @@ class SettingsDialog(QDialog):
         self.resize(670, 540)
         outer = QVBoxLayout(self)
         tabs = QTabWidget()
+        self.tabs = tabs
         outer.addWidget(tabs)
 
         def section(key):
@@ -76,7 +77,7 @@ class SettingsDialog(QDialog):
         check(general, 'start_maximized', 'start_maximized')
         ocr = section('ocr_settings')
         combo(ocr, 'v04_script', 'writing',
-              [(self.t('square'), 'square'), (self.t('rashi'), 'rashi')], 'square', 'writing_help')
+              [(self.t('auto'), 'auto'), (self.t('square'), 'square'), (self.t('rashi'), 'rashi')], 'auto', 'writing_help')
         combo(ocr, 'v04_profile', 'profile',
               [(self.t('torah'), 'torah'), (self.t('general'), 'general')], 'torah', 'profile_help')
         check(ocr, 'v04_eng', 'latin_eng', False, 'latin_help')
@@ -95,7 +96,7 @@ class SettingsDialog(QDialog):
         capture.addRow(label('shortcuts', 'shortcut_help'), shortcut)
         check(capture, 'retain_image', 'retain_image', True, 'retain_help')
         combo(capture, 'v04_after_capture', 'after_capture', [(self.t('preview_first'), 'preview'),
-              (self.t('recognize_after'), 'recognize')], 'preview', 'after_help')
+              (self.t('recognize_after'), 'recognize')], 'recognize', 'after_help')
         display = section('display_settings')
         fonts = sorted(set(QFontDatabase.families(QFontDatabase.WritingSystem.Hebrew)) | {'Arial'})
         font = combo(display, 'font', 'font', [(f, f) for f in fonts], 'Arial', 'font_help')
@@ -148,6 +149,9 @@ class SettingsDialog(QDialog):
         self.accept()
 
 
-def show_settings(window):
-    if SettingsDialog(window).exec() == QDialog.DialogCode.Accepted:
+def show_settings(window, tab=None):
+    dialog = SettingsDialog(window)
+    if tab is not None:
+        dialog.tabs.setCurrentIndex(tab)
+    if dialog.exec() == QDialog.DialogCode.Accepted:
         window.apply_preferences()
